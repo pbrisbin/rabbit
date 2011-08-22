@@ -32,8 +32,8 @@ class Package
   end
 
   def download
-    uri            = AUR + @urlpath
-    @archive_path  = File.basename(uri)
+    uri           = AUR + @urlpath
+    @archive_path = File.basename(uri)
 
     f = open(@archive_path, "wb")
     f.write(open(uri).read)
@@ -62,26 +62,22 @@ class Package
   end
 
   def install
-    pkg = find_pkg
+    pkg = nil
+
+    catch :found do
+      Find.find(@name) do |fp|
+        if fp =~ /.*\.pkg\.tar\.[gx]z$/
+          pkg = fp
+          throw :found
+        end
+      end
+    end
 
     if pkg
       begin `sudo pacman -U #{pkg}`
       rescue
         raise
       end
-    else
-      raise
     end
-  end
-
-  protected
-
-  def find_pkg
-    # note: make this more robust, handle split packages, etc
-    Find.find(@name) do |fp|
-      return fp if fp =~ /.*\.pkg\.tar\.[gx]z$/
-    end
-
-    return nil
   end
 end
