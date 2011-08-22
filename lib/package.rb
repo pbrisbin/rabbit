@@ -69,10 +69,12 @@ class Package
       rescue
         raise
       end
+    else
+      raise
     end
   end
 
-  private
+  protected
 
   def find_pkg
     # note: make this more robust, handle split packages, etc

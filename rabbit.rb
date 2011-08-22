@@ -12,25 +12,49 @@
 require_relative 'lib/aursearch'
 require_relative 'lib/package'
 
+# todo, prompt user and run
+def process_targets targets
+  targets.each do |pkg|
+    puts "#{pkg.name} - #{pkg.version}"
+
+    #pkg.download
+    #pkg.extract
+    #pkg.build
+    #pkg.install
+  end
+end
+
 case ARGV[0]
 when '-S'
   pkg = Package.find ARGV[1]
+  process_targets [pkg] if pkg
 
-  if pkg
-    pkg.download
-    pkg.extract
-    pkg.build
-    pkg.install
+when '-Syu'
+  to_update = []
+
+  `pacman -Qm`.lines.each do |output|
+    name, version = output.split(' ')
+
+    pkg = begin Package.find name
+          rescue
+            nil
+          end
+    
+    if pkg
+      comp = `vercmp #{version} #{pkg.version}`.to_i
+      case comp
+      when  1; STDERR.puts "warning: #{name}, local (#{version}) is newer than aur (#{pkg.version})"
+      when -1
+        to_update << pkg
+      end
+    end
   end
 
-when '-Ss'
-  srch = AurSearch.new ARGV[1]
-  srch.show_results
+  process_targets to_update
 
-when '-Ssi'
-  srch = AurSearch.new ARGV[1], :info
-  srch.show_results
+when '-Ss' ; AurSearch.new(ARGV[1]).show_results
+when '-Ssi'; AurSearch.new(ARGV[1], :info).show_results
 
 else
-  puts "usage: rabbit [ -S <pkg> | -Ss <term> | -Ssi <term> ]"
+  puts "usage: rabbit [ -S <pkg> | -Syu | -Ss <term> | -Ssi <term> ]"
 end
