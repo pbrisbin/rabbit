@@ -2,60 +2,57 @@ require 'cgi'
 require 'json'
 require 'net/http'
 
-require_relative 'package'
-
-AUR       = "http://aur.archlinux.org"
-AURSEARCH = AUR + "/rpc.php?type=search&arg="
-AURINFO   = AUR + "/rpc.php?type=info&arg="
+AUR = "http://aur.archlinux.org"
 
 class AurSearch
-  attr_reader :results
+  def self.search *term
+    call_rpc(:search, *term) do |result|
+      outofdate = result['OutOfDate'] == '1' ? ' [out of date]' : ''
 
-  def initialize term, type = :search
-    @type    = type
-    @results = Array.new
-
-    # add argument to results array
-    l = lambda { |name| @results << Package.new(name) }
-
-    case @type
-      when :search
-        j = get_json(AURSEARCH + CGI::escape(term))
-        j['results'].each &l if j.has_results?
-
-      when :info
-        j = get_json(AURINFO + CGI::escape(term))
-        l.call j['results'] if j.has_results?
+      puts "aur/#{result['Name']} #{result['Version']}#{outofdate}",
+           "    #{result['Description']}"
     end
   end
 
-  def show_results
-    @results.each do |pkg|
-      case @type
-        when :search
-          puts "aur/#{pkg.name} #{pkg.version}#{pkg.outofdate ? ' [out of date]' : ''}",
-               "    #{pkg.description}"
-        when :info
-          puts "Repository      : aur",
-               "Name            : #{pkg.name}",
-               "Version         : #{pkg.version}",
-               "URL             : #{pkg.url}",
-               "Out of date     : #{pkg.outofdate ? 'Yes' : 'No'}",
-               "Description     : #{pkg.description}",
-      end
+  def self.info *term
+    call_rpc(:multiinfo, *term) do |result|
+      outofdate = result['OutOfDate'] == '1' ? 'Yes' : 'No'
+
+      puts "Repository      : aur",
+           "Name            : #{result['Name']}",
+           "Version         : #{result['Version']}",
+           "URL             : #{result['URL']}",
+           "Out of date     : #{outofdate}",
+           "Description     : #{result['Description']}",
+           ""
     end
   end
 
   private
 
-  def get_json url
-    r = Net::HTTP.get_response(URI.parse(url))
-    j = JSON.parse(r.body)
-
-    def j.has_results? # add a singleton helper
-      has_key? 'results' and ['results'] != "No results found"
+  def self.call_rpc type, *term, &block
+    url = case type
+      when :search
+        "#{AUR}/rpc.php?type=search&arg=#{CGI::escape(term * " ")}"
+      when :multiinfo
+        term.collect! { |t| "&arg[]=" + CGI::escape(t) }
+        "#{AUR}/rpc.php?type=multiinfo#{term * ""}"
     end
 
-    return j
+    puts url
+
+    begin
+      resp = Net::HTTP.get_response(URI.parse(url))
+      json = JSON.parse(resp.body)
+    rescue
+      json = nil
+    end
+
+    if json && json.has_key?('results') && json['results'].class == Array
+      json['results'].sort { |a,b| a['Name'] <=> b['Name'] }.each &block
+    else
+      puts "no results"
+      raise
+    end
   end
 end
