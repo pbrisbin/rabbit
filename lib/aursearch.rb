@@ -33,13 +33,11 @@ class AurSearch
   def self.call_rpc type, *term, &block
     url = case type
       when :search
-        "#{AUR}/rpc.php?type=search&arg=#{CGI::escape(term * " ")}"
+        "#{AUR}/rpc.php?type=search&arg=#{CGI::escape(term.join(" "))}"
       when :multiinfo
         term.collect! { |t| "&arg[]=" + CGI::escape(t) }
-        "#{AUR}/rpc.php?type=multiinfo#{term * ""}"
+        "#{AUR}/rpc.php?type=multiinfo#{term.join}"
     end
-
-    puts url
 
     begin
       resp = Net::HTTP.get_response(URI.parse(url))
@@ -51,8 +49,7 @@ class AurSearch
     if json && json.has_key?('results') && json['results'].class == Array
       json['results'].sort { |a,b| a['Name'] <=> b['Name'] }.each &block
     else
-      puts "no results"
-      raise
+      STDERR.puts "No results round"
     end
   end
 end
