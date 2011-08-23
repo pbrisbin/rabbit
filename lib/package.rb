@@ -1,16 +1,14 @@
-require 'find'
 require 'open-uri'
-
 require_relative 'aursearch'
 
 class Package
-  attr_reader :name, :version, :pkg_url
+  attr_reader :name, :version, :base_url, :archive
 
-  def initialize name, version, pkg_url
-    @name         = name
-    @version      = version
-    @pkg_url      = pkg_url
-    @archive_path = File.basename(@pkg_url)
+  def initialize name, version, url
+    @name     = name
+    @version  = version
+    @base_url = File.dirname  url
+    @archive  = File.basename url
   end
 
   def self.find name
@@ -23,21 +21,34 @@ class Package
   end
 
   def download
+    archive_url = "#{@base_url}/#{@archive}"
+
     begin
-      puts "Downloading #{@pkg_url}..."
-      f = open(@archive_path, "wb")
-      f.write(open(@pkg_url).read)
+      a = open(archive_url)
+      f = open(@archive, "wb")
+
+      f.write(a.read)
+
+      a.close
       f.close
     rescue
       STDERR.puts "Error downloading the package"
+
+      a.close
+      f.close
+
       raise
     end
   end
 
   def extract
-    puts "Extracting #{@archive_path}..."
-    unless system "tar xzf \"#{@archive_path}\""
-      STDERR.puts "Tar threw an error"
+    if File.exists? @archive
+      unless system "tar xzf \"#{@archive}\""
+        STDERR.puts "Tar threw an error"
+        raise
+      end
+    else
+      STDERR.puts "#{archive}: file not found"
       raise
     end
   end
@@ -48,11 +59,13 @@ class Package
       Dir.chdir @name
 
       if File.exists? 'PKGBUILD'
-        puts "Building #{@name}/PKGBUILD..."
         unless system "makepkg"
           STDERR.puts "Makepkg threw an error"
           raise
         end
+      else
+        STDERR.puts "PKGBUILD: file not found"
+        raise
       end
 
       Dir.chdir oldpwd
@@ -60,18 +73,25 @@ class Package
   end
 
   def install
-    if Dir.exists? @name
-      Find.find(@name) do |fp|
-        if fp =~ /.*\.pkg\.tar\.[gx]z$/
-          puts "Installing #{fp}..."
-          unless system "sudo pacman -U \"#{fp}\""
-            STDERR.puts "Pacman threw an error"
-            raise
-          end
+    to_install = []
 
-          return
-        end
+    # find all built packages
+    Dir.glob("#{@name}/*") do |fp|
+      to_install << fp if fp =~ /.*\.pkg\.tar\.[gx]z$/
+    end
+
+    unless to_install.empty?
+      # make a quote separated string of args
+      args = to_install.collect { |a| "'#{a}'" }.join(' ')
+
+      # install all of them
+      unless system "sudo pacman -U #{args}"
+        STDERR.puts "Pacman threw an error"
+        raise
       end
+    else
+      STDERR.puts "No packages found"
+      raise
     end
   end
 end

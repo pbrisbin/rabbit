@@ -12,15 +12,26 @@
 require_relative 'lib/aursearch'
 require_relative 'lib/package'
 
-#AurSearch.info "aurget", "cower-git"
+def install_targets targets
+  targets.each do |target|
+    # find will print it's own "not found"
+    pkg = Package.find target
 
-#AurSearch.search "ruby"
+    if pkg
+      begin
+        pkg.download
+        pkg.extract
+        pkg.build
+        pkg.install
+      rescue
+        STDERR.puts "Something broke installing #{pkg.name}"
+      end
+    end
+  end
+end
 
-pkg = Package.find "aurget"
-
-if pkg
-  pkg.download
-  pkg.extract
-  pkg.build
-  pkg.install
+case ARGV.shift
+  when '-S' ; install_targets   ARGV
+  when '-Ss'; AurSearch.search *ARGV
+  when '-Si'; AurSearch.info   *ARGV
 end
