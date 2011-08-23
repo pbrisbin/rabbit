@@ -10,13 +10,17 @@
 #
 ###
 require_relative 'lib/aursearch'
+require_relative 'lib/package'
 
-case ARGV[0]
-  when '-Ss'
-    ARGV.shift
-    AurSearch.search *ARGV
+#AurSearch.info "aurget", "cower-git"
 
-  when '-Si'
-    ARGV.shift
-    AurSearch.info *ARGV
+#AurSearch.search "ruby"
+
+pkg = Package.find "aurget"
+
+if pkg
+  pkg.download
+  pkg.extract
+  pkg.build
+  pkg.install
 end
