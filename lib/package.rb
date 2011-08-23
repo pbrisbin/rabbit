@@ -20,6 +20,23 @@ class Package
     end
   end
 
+  def self.install *targets
+    targets.each do |target|
+      pkg = self.find target
+
+      if pkg
+        begin
+          pkg.download
+          pkg.extract
+          pkg.build
+          pkg.install
+        rescue
+          STDERR.puts "Something broke installing #{pkg.name}"
+        end
+      end
+    end
+  end
+
   def download
     archive_url = "#{@base_url}/#{@archive}"
 
