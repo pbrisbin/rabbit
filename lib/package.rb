@@ -1,48 +1,45 @@
-#
-# rabbit support file.
-#
-###
 require 'find'
 require 'open-uri'
 
 require_relative 'aursearch'
 
 class Package
-  attr_reader :name, :version, :description, :url, :urlpath, :outofdate
+  attr_reader :name, :version, :pkg_url
 
-  @archive_path
-
-  # note: a Package is always initialized from a JSON result returned by
-  # the aur's rpc interface
-  def initialize json_result
-    @name        = json_result['Name']
-    @version     = json_result['Version']
-    @description = json_result['Description']
-    @url         = json_result['URL']
-    @urlpath     = json_result['URLPath']
-    @outofdate   = json_result['OutOfDate'] == "1" ? true : false
+  def initialize name, version, pkg_url
+    @name         = name
+    @version      = version
+    @pkg_url      = pkg_url
+    @archive_path = File.basename(@pkg_url)
   end
 
   def self.find name
-    asearch = AurSearch.new name, :info
-
-    raise if asearch.results.empty?
-    pkg = asearch.results.first
-    return pkg
+    pkg = AurSearch.class_eval do
+      # access private call_rpc method
+      call_rpc(:multiinfo, name) do |r|
+        return Package.new r['Name'], r['Version'], AUR + r['URLPath']
+      end
+    end
   end
 
   def download
-    uri           = AUR + @urlpath
-    @archive_path = File.basename(uri)
-
-    f = open(@archive_path, "wb")
-    f.write(open(uri).read)
-    f.close
+    begin
+      puts "Downloading #{@pkg_url}..."
+      f = open(@archive_path, "wb")
+      f.write(open(@pkg_url).read)
+      f.close
+    rescue
+      STDERR.puts "Error downloading the package"
+      raise
+    end
   end
 
   def extract
-    # todo: can ruby do this itself?
-    `tar xzf #{@archive_path}`  
+    puts "Extracting #{@archive_path}..."
+    unless system "tar xzf \"#{@archive_path}\""
+      STDERR.puts "Tar threw an error"
+      raise
+    end
   end
 
   def build
@@ -51,8 +48,9 @@ class Package
       Dir.chdir @name
 
       if File.exists? 'PKGBUILD'
-        begin `makepkg`
-        rescue
+        puts "Building #{@name}/PKGBUILD..."
+        unless system "makepkg"
+          STDERR.puts "Makepkg threw an error"
           raise
         end
       end
@@ -62,21 +60,17 @@ class Package
   end
 
   def install
-    pkg = nil
-
-    catch :found do
+    if Dir.exists? @name
       Find.find(@name) do |fp|
         if fp =~ /.*\.pkg\.tar\.[gx]z$/
-          pkg = fp
-          throw :found
-        end
-      end
-    end
+          puts "Installing #{fp}..."
+          unless system "sudo pacman -U \"#{fp}\""
+            STDERR.puts "Pacman threw an error"
+            raise
+          end
 
-    if pkg
-      begin `sudo pacman -U #{pkg}`
-      rescue
-        raise
+          return
+        end
       end
     end
   end
