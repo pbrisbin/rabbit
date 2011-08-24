@@ -11,6 +11,7 @@ $LOAD_PATH << # current directory and ./lib
 
 require 'aursearch'
 require 'package'
+require 'pkgbuild'
 
 class Config
   attr_reader :pacman, :makepkg, :sync_level,
@@ -39,9 +40,26 @@ end
 
 $config = Config.new
 
-case ARGV.shift
-  when '-Ss'; AurSearch.search   *ARGV
-  when '-Si'; AurSearch.info     *ARGV
-  when '-Sp'; AurSearch.pkgbuild *ARGV
-  when '-S' ; Package.install    *ARGV
+#case ARGV.shift
+  #when '-Ss'; AurSearch.search   *ARGV
+  #when '-Si'; AurSearch.info     *ARGV
+  #when '-Sp'; AurSearch.pkgbuild *ARGV
+  #when '-S' ; Package.install    *ARGV
+#end
+
+pkg = Package.find ARGV[0]
+
+if pkg
+  pkg.with_pkgbuild do |str|
+    # print the pkgbuild for comparison
+    puts str
+    puts
+
+    pkgbuild = Pkgbuild.new str
+    pkgbuild.parse!
+
+    # show what was parsed
+    puts "depends parsed as     #{pkgbuild.depends.inspect}"
+    puts "makedepends parsed as #{pkgbuild.makedepends.inspect}"
+  end
 end

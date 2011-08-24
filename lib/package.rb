@@ -68,13 +68,12 @@ class Package
   end
 
   def with_pkgbuild &block
-    pkg = AurSearch.class_eval do
-      # access private call_rpc method
-      call_rpc(:multiinfo, name) do |r|
-        url  = AUR + File.dirname(result['URLPath']) + '/PKGBUILD'
-        resp = Net::HTTP.get_response(URI.parse(url))
-        block.call resp.body
-      end
+    begin
+      url  = @base_url + '/PKGBUILD'
+      resp = Net::HTTP.get_response(URI.parse(url))
+      block.call resp.body
+    rescue
+      raise RabbitNonError, "Error retrieving the PKGBUILD"
     end
   end
 
