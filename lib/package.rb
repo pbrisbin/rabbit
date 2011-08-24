@@ -67,6 +67,17 @@ class Package
     end
   end
 
+  def with_pkgbuild &block
+    pkg = AurSearch.class_eval do
+      # access private call_rpc method
+      call_rpc(:multiinfo, name) do |r|
+        url  = AUR + File.dirname(result['URLPath']) + '/PKGBUILD'
+        resp = Net::HTTP.get_response(URI.parse(url))
+        block.call resp.body
+      end
+    end
+  end
+
   def download
     archive_url = "#{@base_url}/#{@archive}"
 
