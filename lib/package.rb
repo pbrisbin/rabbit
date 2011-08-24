@@ -1,6 +1,6 @@
+require 'aursearch'
 require 'fileutils'
 require 'open-uri'
-require_relative 'aursearch'
 
 # an error that should stop processing of that target only
 class RabbitNonError < StandardError
