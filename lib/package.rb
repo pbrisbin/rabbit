@@ -54,9 +54,7 @@ class Package
 
     puts "", "Targets (#{targets.length}): #{targets.join(' ')}",
          ""
-
     print "Proceed with installation (y/n)? "
-
     reply = STDIN.gets
 
     unless reply.chomp =~ /y(es)?/i
@@ -86,11 +84,9 @@ class Package
 
         rescue RabbitNotFoundError => e
           STDERR.puts e.message
-          next
 
         rescue RabbitNonError => e
           STDERR.puts e.message, "Skipping #{pkg.name}."
-          next
 
         rescue RabbitError => e
           STDERR.puts e.message
@@ -140,6 +136,7 @@ class Package
              :pacman => pac_deps.reverse }
   end
 
+  # excute a block with a Package's pkgbuild
   def with_pkgbuild &block
     begin
       url  = @base_url + '/PKGBUILD'
@@ -151,6 +148,7 @@ class Package
     end
   end
 
+  # download the tarball into the current directory
   def download
     archive_url = "#{@base_url}/#{@archive}"
 
@@ -166,6 +164,7 @@ class Package
     end
   end
 
+  # extract the downloaded archive
   def extract
     if File.exists? @archive
       unless system "tar xzf \"#{@archive}\""
@@ -179,6 +178,7 @@ class Package
     end
   end
 
+  # build the package
   def build
     oldpwd = Dir.pwd
     if Dir.exists? @name
@@ -203,6 +203,7 @@ class Package
     end
   end
 
+  # install all built packages
   def install
     to_install = []
 
@@ -211,50 +212,50 @@ class Package
       to_install << fp if fp =~ /.*\.pkg\.tar\.[gx]z$/
     end
 
-    unless to_install.empty?
-      # make a quote separated string of args
-      args = to_install.collect { |a| "'#{a}'" }.join(' ')
-
-      # install all of them
-      unless system "#{$config.pacman} #{args}"
-        raise RabbitNonError, "Pacman threw an error"
-      end
-
-      if $config.discard_package
-        to_install.each { |pkg| File.delete pkg }
-      else
-        unless Dir.exists? $config.package_directory
-          begin FileUtils.mkdir_p $config.package_directory
-          rescue
-            to_install = [] # so we don't try to save them
-            raise RabbitNonError, "Could not create #{$config.package_directory}."
-          end
-        end
-
-        to_install.each do |pkg|
-          begin
-            from = open(pkg, "rb")
-            to   = open("#{$config.package_directory}/#{File.basename pkg}", "wb")
-            to.write(from.read)
-
-            File.delete pkg
-          rescue
-            raise RabbitNonError, "Error saving the package"
-          ensure
-            from.close
-            to.close
-          end
-        end
-
-        if Dir.exists? @name
-          begin Dir.delete @name
-          rescue Errno::ENOTEMPTY
-            # silenty ignore
-          end
-        end
-      end
-    else
+    if to_install.empty?
       raise RabbitNonError, "No packages found to install"
+    end
+
+    # make a quote separated string of args
+    args = to_install.collect { |a| "'#{a}'" }.join(' ')
+
+    # install all of them
+    unless system "#{$config.pacman} #{args}"
+      raise RabbitNonError, "Pacman threw an error"
+    end
+
+    if $config.discard_package
+      to_install.each { |pkg| File.delete pkg }
+    else
+      unless Dir.exists? $config.package_directory
+        begin FileUtils.mkdir_p $config.package_directory
+        rescue
+          to_install = [] # so we don't try to save them
+          raise RabbitNonError, "Could not create #{$config.package_directory}."
+        end
+      end
+
+      to_install.each do |pkg|
+        begin
+          from = open(pkg, "rb")
+          to   = open("#{$config.package_directory}/#{File.basename pkg}", "wb")
+          to.write(from.read)
+
+          File.delete pkg
+        rescue
+          raise RabbitNonError, "Error saving the package"
+        ensure
+          from.close
+          to.close
+        end
+      end
+
+      if Dir.exists? @name
+        begin Dir.delete @name
+        rescue Errno::ENOTEMPTY
+          # silenty ignore
+        end
+      end
     end
   end
 end

@@ -29,7 +29,7 @@ class Config
     @discard_tarball   = true
     @discard_package   = false
     @resolve_deps      = true
-    @edit_pkgbuilds    = :always
+    @edit_pkgbuilds    = :never
     @ignore_packages   = []
   end
 
