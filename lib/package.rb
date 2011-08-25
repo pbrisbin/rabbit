@@ -40,6 +40,29 @@ class Package
   end
 
   def self.install *targets
+    if $config.resolve_deps
+      puts "resolving dependencies..."
+
+      deps = Package.find_all_deps targets
+
+      puts "",
+           "warning: the following (#{deps[:pacman].length}) packages may be installed by pacman: #{deps[:pacman].join(' ')}",
+           "" unless deps[:pacman].empty?
+
+      targets = deps[:aur]
+    end
+
+    puts "", "Targets (#{targets.length}): #{targets.join(' ')}",
+         ""
+
+    print "Proceed with installation (y/n)? "
+
+    reply = STDIN.gets
+
+    unless reply.chomp =~ /y(es)?/i
+      exit
+    end
+
     # create the build dir if needed
     unless Dir.exists? $config.build_directory
       begin FileUtils.mkdir_p $config.build_directory
@@ -77,15 +100,55 @@ class Package
     end
   end
 
+  def self.find_all_deps original_targets
+    aur_deps = original_targets.reverse
+    pac_deps = []
+
+    aur_deps.each do |dep|
+      begin pkg = Package.find dep
+        begin
+          pkg.with_pkgbuild do |pkgbuild|
+            pkgbuild.parse!
+
+            args =  pkgbuild.depends.collect     { |x| "'#{x}'" }.join(' ')
+            args << pkgbuild.makedepends.collect { |x| "'#{x}'" }.join(' ')
+
+            deps = `pacman -T -- #{args}`.split(' ')
+
+            deps.each do |ddep|
+              aur_deps << ddep unless aur_deps.include? ddep
+            end
+          end
+
+        rescue RabbitNonError => e
+          puts "#{pkg.name}: #{e}"
+          next
+
+        rescue RabbitError => e
+          puts "#{pkg.name}: #{e}"
+          exit 1
+        end
+
+      rescue RabbitNotFoundError
+        # cannot be installed via AUR, hopefully a repo package
+        # todo: check that fact
+        pac_deps << dep unless pac_deps.include? dep
+      end
+    end
+
+    return { :aur    => (aur_deps - pac_deps).reverse,
+             :pacman => pac_deps.reverse }
+  end
+
   def with_pkgbuild &block
-    #begin
+    begin
       url  = @base_url + '/PKGBUILD'
       resp = Net::HTTP.get_response(URI.parse(url))
       pkgbuild = Pkgbuild.new(resp.body)
       block.call pkgbuild
-    #rescue
-      #raise RabbitNonError, "Error retrieving the PKGBUILD"
-    #end
+    rescue
+      raise RabbitNonError, "Error retrieving the PKGBUILD"
+    end
   end
 
   def download
