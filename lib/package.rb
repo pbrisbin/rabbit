@@ -1,6 +1,7 @@
 require 'aursearch'
 require 'fileutils'
 require 'open-uri'
+require 'pkgbuild'
 
 # when a search returns no results
 class RabbitNotFoundError < StandardError
@@ -80,7 +81,8 @@ class Package
     #begin
       url  = @base_url + '/PKGBUILD'
       resp = Net::HTTP.get_response(URI.parse(url))
-      block.call resp.body
+      pkgbuild = Pkgbuild.new(resp.body)
+      block.call pkgbuild
     #rescue
       #raise RabbitNonError, "Error retrieving the PKGBUILD"
     #end

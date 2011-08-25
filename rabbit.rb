@@ -56,8 +56,7 @@ def find_all_deps original_targets
     begin pkg = Package.find dep
       #begin
 
-        pkg.with_pkgbuild do |str|
-          pkgbuild = Pkgbuild.new str
+        pkg.with_pkgbuild do |pkgbuild|
           pkgbuild.parse!
 
           args =  pkgbuild.depends.collect     { |x| "'#{x}'" }.join(' ')
