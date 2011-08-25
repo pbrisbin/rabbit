@@ -2,6 +2,10 @@ require 'aursearch'
 require 'fileutils'
 require 'open-uri'
 
+# when a search returns no results
+class RabbitNotFoundError < StandardError
+end
+
 # an error that should stop processing of that target only
 class RabbitNonError < StandardError
 end
@@ -56,8 +60,13 @@ class Package
           pkg.build   unless $config.sync_level < 2
           pkg.install unless $config.sync_level < 3
 
+        rescue RabbitNotFoundError => e
+          STDERR.puts e.message
+          next
+
         rescue RabbitNonError => e
           STDERR.puts e.message, "Skipping #{pkg.name}."
+          next
 
         rescue RabbitError => e
           STDERR.puts e.message
@@ -68,13 +77,13 @@ class Package
   end
 
   def with_pkgbuild &block
-    begin
+    #begin
       url  = @base_url + '/PKGBUILD'
       resp = Net::HTTP.get_response(URI.parse(url))
       block.call resp.body
-    rescue
-      raise RabbitNonError, "Error retrieving the PKGBUILD"
-    end
+    #rescue
+      #raise RabbitNonError, "Error retrieving the PKGBUILD"
+    #end
   end
 
   def download

@@ -64,7 +64,7 @@ class AurSearch
     if json && json.has_key?('results') && json['results'].class == Array
       json['results'].sort { |a,b| a['Name'] <=> b['Name'] }.each &block
     else
-      STDERR.puts "No results round"
+      raise RabbitNotFoundError, "No results round"
     end
   end
 end
