@@ -77,21 +77,19 @@ class Package
 
   # accepts nothing, updates if available
   def self.update
+    puts "checking for available upgrades..."
+
     targets = []
 
     `pacman -Qm`.lines.each do |out|
       name, version = out.split(' ')
-
-      print "#{name} - #{version} -> "
 
       begin
         AurSearch.class_eval do
           call_rpc(:multiinfo, name) do |r|
             nversion = r['Version']
 
-            print "#{nversion}\n"
-
-            if false # todo: vercmp
+            if `vercmp '#{nversion}' '#{version}'`.to_i == 1
               targets << Package.new(r['Name'], nversion, AUR + r['URLPath'])
             end
           end
@@ -126,22 +124,19 @@ class Package
 
       deps = find_all_deps targets
 
-      puts "",
-           "warning: the following (#{deps[:pacman].length}) packages may be installed by pacman: #{deps[:pacman].join(' ')}",
-           "" unless deps[:pacman].empty?
+      puts %{
+        warning: the following (#{deps[:pacman].length}) packages may be installed by pacman: #{deps[:pacman].join(' ')}
+      }.gsub(/^ +/,'') unless deps[:pacman].empty?
 
       targets = deps[:targets]
     end
 
-    # prompt for install
-    puts "", "Targets (#{targets.length}): #{targets.collect { |x| x.name }.join(' ')}",
-         ""
-    print "Proceed with installation (y/n)? "
-    reply = STDIN.gets
+    print %{
+      Targets (#{targets.length}): #{targets.collect { |x| x.name }.join(' ')}
 
-    unless reply.chomp =~ /y(es)?/i
-      exit
-    end
+      Proceed with installation (y/n)? }.gsub(/^ +/,'')
+
+    exit unless STDIN.gets.chomp =~ /y(es)?/i
 
     # create the build dir if needed
     unless Dir.exists? $config.build_directory
