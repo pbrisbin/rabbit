@@ -36,7 +36,7 @@ class Config
     end
 
     # note: just a temp path for testing
-    yml = YAML.load_file("/home/patrick/Code/ruby/rabbit/rabbit.yml")
+    yml = YAML.load_file "/home/patrick/Code/ruby/rabbit/rabbit.yml"
 
     read_key yml, 'pacman'
     read_key yml, 'makepkg'
@@ -46,7 +46,6 @@ class Config
     read_key yml, 'discard_tarball'
     read_key yml, 'discard_package'
     read_key yml, 'resolve_deps'
-    read_key yml, 'edit_pkgbuilds'
     read_key yml, 'ignore_packages'
 
     # map the symbols to integers to simplify the "how far do we go"
@@ -55,6 +54,18 @@ class Config
                                          :extract  => 1,
                                          :build    => 2,
                                          :install  => 3 }
+
+    # this mapping just ensures a valid value was entered
+    read_mapped_key yml, 'edit_pkgbuilds', { :always => :always,
+                                             :never  => :never,
+                                             :prompt => :prompt }
+
+    # some post-user-input fixes
+    @sync_level     = :download unless @sync_level
+    @edit_pkgbuilds = :always   unless @edit_pkgbuilds
+
+    @build_directory.gsub!   /~/, ENV['HOME']
+    @package_directory.gsub! /~/, ENV['HOME']
 
     return self
   end
