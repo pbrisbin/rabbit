@@ -1,7 +1,6 @@
 require 'aursearch'
 require 'fileutils'
 require 'open-uri'
-require 'pkgbuild'
 
 # when a search returns no results
 class RabbitNotFoundError < StandardError
@@ -20,6 +19,7 @@ end
 class RabbitError < StandardError
 end
 
+# a PKGBUILD parser
 class Pkgbuild
   attr_reader :depends, :makedepends
 
@@ -75,20 +75,66 @@ class Package
     end
   end
 
-  def self.install *targets
+  # accepts nothing, updates if available
+  def self.update
+    targets = []
+
+    `pacman -Qm`.lines.each do |out|
+      name, version = out.split(' ')
+
+      print "#{name} - #{version} -> "
+
+      begin
+        AurSearch.class_eval do
+          call_rpc(:multiinfo, name) do |r|
+            nversion = r['Version']
+
+            print "#{nversion}\n"
+
+            if false # todo: vercmp
+              targets << Package.new(r['Name'], nversion, AUR + r['URLPath'])
+            end
+          end
+        end
+      rescue RabbitNotFoundError
+        # ignore
+      end
+    end
+
+    process_targets targets unless targets.empty?
+  end
+
+  # accepts names and hands off to process_targets
+  def self.install names
+    targets = []
+
+    names.each do |name|
+      begin
+        targets << find(name)
+      rescue RabbitNotFoundError
+        puts "#{name}: package not found"
+      end
+    end
+
+    process_targets targets unless targets.empty?
+  end
+
+  # accepts Packages, returns nothing
+  def self.process_targets targets
     if $config.resolve_deps
       puts "resolving dependencies..."
 
-      deps = Package.find_all_deps targets
+      deps = find_all_deps targets
 
       puts "",
            "warning: the following (#{deps[:pacman].length}) packages may be installed by pacman: #{deps[:pacman].join(' ')}",
            "" unless deps[:pacman].empty?
 
-      targets = deps[:aur]
+      targets = deps[:targets]
     end
 
-    puts "", "Targets (#{targets.length}): #{targets.join(' ')}",
+    # prompt for install
+    puts "", "Targets (#{targets.length}): #{targets.collect { |x| x.name }.join(' ')}",
          ""
     print "Proceed with installation (y/n)? "
     reply = STDIN.gets
@@ -105,71 +151,68 @@ class Package
       end
     end
 
-    # change to it
     Dir.chdir $config.build_directory
 
-    targets.each do |target|
-      pkg = self.find target
+    targets.each do |pkg|
+      begin
+        pkg.download
+        pkg.extract unless $config.sync_level < 1
+        pkg.build   unless $config.sync_level < 2
+        pkg.install unless $config.sync_level < 3
 
-      if pkg
-        begin
-          pkg.download
-          pkg.extract unless $config.sync_level < 1
-          pkg.build   unless $config.sync_level < 2
-          pkg.install unless $config.sync_level < 3
+      rescue RabbitNotFoundError => e
+        STDERR.puts e.message
 
-        rescue RabbitNotFoundError => e
-          STDERR.puts e.message
+      rescue RabbitNonError => e
+        STDERR.puts e.message, "Skipping #{pkg.name}."
 
-        rescue RabbitNonError => e
-          STDERR.puts e.message, "Skipping #{pkg.name}."
-
-        rescue RabbitError => e
-          STDERR.puts e.message
-          exit 1
-        end
+      rescue RabbitError => e
+        STDERR.puts e.message
+        exit 1
       end
     end
   end
 
-  def self.find_all_deps original_targets
-    aur_deps = original_targets.reverse
+  # accepts Packages, returns { :targets => Packages, :pacman => names }
+  def self.find_all_deps targets
     pac_deps = []
 
-    aur_deps.each do |dep|
-      begin pkg = Package.find dep
-        begin
-          pkg.with_pkgbuild do |pkgbuild|
-            pkgbuild.parse!
+    targets.reverse!.each do |pkg|
+      begin
+        pkg.with_pkgbuild do |pkgbuild|
+          pkgbuild.parse!
 
-            args =  pkgbuild.depends.collect     { |x| "'#{x}'" }.join(' ')
-            args << pkgbuild.makedepends.collect { |x| "'#{x}'" }.join(' ')
+          args =  pkgbuild.depends.collect     { |x| "'#{x}'" }.join(' ')
+          args << pkgbuild.makedepends.collect { |x| "'#{x}'" }.join(' ')
 
-            deps = `pacman -T -- #{args}`.split(' ')
+          deps = `pacman -T -- #{args}`.split(' ')
 
-            deps.each do |ddep|
-              aur_deps << ddep unless aur_deps.include? ddep
+          deps.each do |ddep|
+            next if pac_deps.include? ddep
+            next if targets.index {|p| p.name == ddep }
+
+            begin
+              targets << find(ddep)
+            rescue RabbitNotFoundError
+              # cannot be installed via AUR, hopefully a repo package
+              # todo: check that fact
+              pac_deps << ddep
             end
           end
-
-        rescue RabbitNonError => e
-          puts "#{pkg.name}: #{e}"
-          next
-
-        rescue RabbitError => e
-          puts "#{pkg.name}: #{e}"
-          exit 1
         end
 
-      rescue RabbitNotFoundError
-        # cannot be installed via AUR, hopefully a repo package
-        # todo: check that fact
-        pac_deps << dep unless pac_deps.include? dep
+      rescue RabbitNonError => e
+        puts "#{pkg.name}: #{e}"
+        next
+
+      rescue RabbitError => e
+        puts "#{pkg.name}: #{e}"
+        exit 1
       end
     end
 
-    return { :aur    => (aur_deps - pac_deps).reverse,
-             :pacman => pac_deps.reverse }
+    return { :targets => targets.reverse,
+             :pacman  => pac_deps.reverse }
   end
 
   # excute a block with a Package's pkgbuild

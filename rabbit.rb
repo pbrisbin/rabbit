@@ -5,7 +5,7 @@
 ###
 require 'pathname'
 
-$LOAD_PATH << # current directory and ./lib
+$LOAD_PATH << # add the current directory and ./lib
   File.dirname(Pathname.new(File.expand_path(__FILE__)).realpath) <<
   File.dirname(Pathname.new(File.expand_path(__FILE__)).realpath) + '/lib'
 
@@ -17,8 +17,9 @@ $config = Config.new
 $config.load_config_file
 
 case ARGV.shift
-  when '-Ss'; AurSearch.search   *ARGV
-  when '-Si'; AurSearch.info     *ARGV
-  when '-Sp'; AurSearch.pkgbuild *ARGV
-  when '-S' ; Package.install    *ARGV
+  when '-Ss'; AurSearch.search   ARGV
+  when '-Si'; AurSearch.info     ARGV
+  when '-Sp'; AurSearch.pkgbuild ARGV
+  when '-S' ; Package.install    ARGV
+  when '-Su'; Package.update
 end

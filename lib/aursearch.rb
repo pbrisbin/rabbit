@@ -7,7 +7,7 @@ AUR = "http://aur.archlinux.org"
 class AurSearch
   # executes a search. if multiple terms are passed, they are joined
   # with a space and encoded as a single search argument
-  def self.search *term
+  def self.search term
     call_rpc(:search, *term) do |result|
       outofdate = result['OutOfDate'] == '1' ? ' [out of date]' : ''
 
@@ -17,7 +17,7 @@ class AurSearch
   end
 
   # prints info for the passed packages
-  def self.info *term
+  def self.info term
     call_rpc(:multiinfo, *term) do |result|
       outofdate = result['OutOfDate'] == '1' ? 'Yes' : 'No'
 
