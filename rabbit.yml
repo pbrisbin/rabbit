@@ -1,0 +1,15 @@
+pacman:  "sudo pacman -U"
+makepkg: "makepkg -s --nocolor"
+
+sync_level:     :install #, :build, :extract, or :download
+edit_pkgbuilds: :never   #, :always, or :prompt
+resolve_deps:   true
+
+build_directory:   "~/Sources"
+package_directory: "~/Packages"
+
+discard_sources: true
+discard_tarball: true
+discard_package: false
+
+ignore_packages:
