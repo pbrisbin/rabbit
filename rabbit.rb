@@ -9,12 +9,11 @@ $LOAD_PATH << # add the current directory and ./lib
   File.dirname(Pathname.new(File.expand_path(__FILE__)).realpath) <<
   File.dirname(Pathname.new(File.expand_path(__FILE__)).realpath) + '/lib'
 
-require 'config'
 require 'aursearch'
+require 'config'
 require 'package'
 
-$config = Config.new
-$config.load_config_file
+$config = Config.load_from_file
 
 case ARGV.shift
   when '-Ss'; AurSearch.search   ARGV

@@ -8,26 +8,36 @@ class AurSearch
   # executes a search. if multiple terms are passed, they are joined
   # with a space and encoded as a single search argument
   def self.search term
-    call_rpc(:search, *term) do |result|
-      outofdate = result['OutOfDate'] == '1' ? ' [out of date]' : ''
+    begin
+      call_rpc(:search, *term) do |result|
+        outofdate = result['OutOfDate'] == '1' ? ' [out of date]' : ''
 
-      puts "aur/#{result['Name']} #{result['Version']}#{outofdate}",
-           "    #{result['Description']}"
+        puts "aur/#{result['Name']} #{result['Version']}#{outofdate}",
+             "    #{result['Description']}"
+      end
+
+    rescue RabbitNotFoundError
+      # ignore
     end
   end
 
   # prints info for the passed packages
   def self.info term
-    call_rpc(:multiinfo, *term) do |result|
-      outofdate = result['OutOfDate'] == '1' ? 'Yes' : 'No'
+    begin
+      call_rpc(:multiinfo, *term) do |result|
+        outofdate = result['OutOfDate'] == '1' ? 'Yes' : 'No'
 
-      puts "Repository      : aur",
-           "Name            : #{result['Name']}",
-           "Version         : #{result['Version']}",
-           "URL             : #{result['URL']}",
-           "Out of date     : #{outofdate}",
-           "Description     : #{result['Description']}",
-           ""
+        puts "Repository      : aur",
+             "Name            : #{result['Name']}",
+             "Version         : #{result['Version']}",
+             "URL             : #{result['URL']}",
+             "Out of date     : #{outofdate}",
+             "Description     : #{result['Description']}",
+             ""
+      end
+
+    rescue RabbitNotFoundError => e
+      # ignore
     end
   end
 
@@ -39,6 +49,7 @@ class AurSearch
         resp = Net::HTTP.get_response(URI.parse(url))
         puts resp.body, ''
       rescue
+        # ignore
       end
     end
   end
@@ -50,8 +61,8 @@ class AurSearch
       when :search
         "#{AUR}/rpc.php?type=search&arg=#{CGI::escape(term.join(" "))}"
       when :multiinfo
-        term.collect! { |t| "&arg[]=" + CGI::escape(t) }
-        "#{AUR}/rpc.php?type=multiinfo#{term.join}"
+        arg = term.collect { |t| "&arg[]=" + CGI::escape(t) }.join
+        "#{AUR}/rpc.php?type=multiinfo#{arg}"
     end
 
     begin
