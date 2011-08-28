@@ -13,6 +13,8 @@ require 'aursearch'
 require 'config'
 require 'package'
 
+Signal.trap("INT") { exit 1 }
+
 $config = Config.load_from_file
 
 case ARGV.shift
