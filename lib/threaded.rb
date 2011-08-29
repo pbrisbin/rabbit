@@ -1,4 +1,8 @@
 class ThreadManager
+  def initialize binding = nil
+    @binding = binding
+  end
+
   def execute_with &block
     @block = block
   end
@@ -8,35 +12,21 @@ class ThreadManager
   end
 
   def execute!
-    results  = []
-    eval_str = ''
+    results = []
+    spawned = []
 
     @args.each do |arg|
-      if arg.class == Symbol
-        eval_str << %{
-          th_#{arg} = Thread.new do
-            results << @block.call(:#{arg})
-          end
-
-        }
-      else
-        eval_str << %{
-          th_#{arg} = Thread.new do
-            results << @block.call(#{arg})
-          end
-
-        }
+      th = Thread.new do
+        results << @block.call(arg)
       end
+
+      spawned << th
     end
 
-    @args.each do |arg|
-      eval_str << %{
-        th_#{arg}.join
-      }
+    spawned.each do |th|
+      th.join
     end
 
-    #puts eval_str
-    instance_eval eval_str
-    return results
+    results
   end
 end
