@@ -1,6 +1,7 @@
 require 'aursearch'
 require 'fileutils'
 require 'open-uri'
+require 'threaded'
 
 # when a search returns no results
 class RabbitNotFoundError < StandardError
@@ -21,7 +22,7 @@ end
 
 # a PKGBUILD parser
 class Pkgbuild
-  attr_reader :depends, :makedepends
+  attr_reader :depends
 
   # argument is the pkgbuild contents as a string
   def initialize pkgbuild
@@ -29,8 +30,10 @@ class Pkgbuild
   end
 
   def parse!
-    @depends     = parse_bash_array :depends
-    @makedepends = parse_bash_array :makedepends
+    tm = ThreadManager.new
+    tm.execute_on :depends, :makedepends
+    tm.execute_with { |t| parse_bash_array t }
+    @depends = tm.execute!.flatten
   end
 
   private
@@ -141,7 +144,8 @@ class Package
     # create the build dir if needed
     unless Dir.exists? $config.build_directory
       begin FileUtils.mkdir_p $config.build_directory
-      rescue
+      rescue => e
+        puts e.message
         raise RabbitError, "Could not create #{$config.build_directory}."
       end
     end
@@ -177,9 +181,7 @@ class Package
         pkg.with_pkgbuild do |pkgbuild|
           pkgbuild.parse!
 
-          args =  pkgbuild.depends.collect     { |x| "'#{x}'" }.join(' ')
-          args << pkgbuild.makedepends.collect { |x| "'#{x}'" }.join(' ')
-
+          args = pkgbuild.depends.collect     { |x| "'#{x}'" }.join(' ')
           deps = `pacman -T -- #{args}`.split(' ')
 
           deps.each do |ddep|
@@ -217,7 +219,8 @@ class Package
       resp = Net::HTTP.get_response(URI.parse(url))
       pkgbuild = Pkgbuild.new(resp.body)
       block.call pkgbuild
-    rescue
+    rescue => e
+      puts e.message
       raise RabbitNonError, "Error retrieving the PKGBUILD"
     end
   end
@@ -230,7 +233,8 @@ class Package
       a = open(archive_url)
       f = open(@archive, "wb")
       f.write(a.read)
-    rescue
+    rescue => e
+      puts e.message
       raise RabbitNonError, "Error downloading the package"
     ensure
       a.close
@@ -303,8 +307,9 @@ class Package
     else
       unless Dir.exists? $config.package_directory
         begin FileUtils.mkdir_p $config.package_directory
-        rescue
+        rescue => e
           to_install = [] # so we don't try to save them
+          puts e.message
           raise RabbitNonError, "Could not create #{$config.package_directory}."
         end
       end
@@ -316,7 +321,8 @@ class Package
           to.write(from.read)
 
           File.delete pkg
-        rescue
+        rescue => e
+          puts e.message
           raise RabbitNonError, "Error saving the package"
         ensure
           from.close
