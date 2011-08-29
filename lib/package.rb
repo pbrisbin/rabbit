@@ -176,12 +176,17 @@ class Package
   def self.find_all_deps targets
     pac_deps = []
 
-    targets.reverse!.each do |pkg|
+    targets.reverse!
+    targets_before = Array.new(targets)
+
+    tm = ThreadManager.new
+    tm.execute_on *targets
+    tm.execute_with do |pkg|
       begin
         pkg.with_pkgbuild do |pkgbuild|
           pkgbuild.parse!
 
-          args = pkgbuild.depends.collect     { |x| "'#{x}'" }.join(' ')
+          args = pkgbuild.depends.collect { |x| "'#{x}'" }.join(' ')
           deps = `pacman -T -- #{args}`.split(' ')
 
           deps.each do |ddep|
@@ -198,6 +203,8 @@ class Package
           end
         end
 
+        nil
+
       rescue RabbitNonError => e
         puts "#{pkg.name}: #{e}"
         next
@@ -208,8 +215,18 @@ class Package
       end
     end
 
-    return { :targets => targets.reverse,
-             :pacman  => pac_deps.reverse }
+    tm.execute!
+
+    new_targets = targets - targets_before
+
+    unless new_targets.empty?
+      new_deps  = find_all_deps new_targets
+      targets  += new_deps[:targets]
+      pac_deps += new_deps[:pacman]
+    end
+
+    return { :targets => targets.uniq { |p| p.name }.reverse,
+              :pacman => pac_deps.uniq.reverse }
   end
 
   # excute a block with a Package's pkgbuild
