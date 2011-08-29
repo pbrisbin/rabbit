@@ -1,7 +1,6 @@
 require 'aursearch'
 require 'fileutils'
 require 'open-uri'
-require 'threaded'
 
 # when a search returns no results
 class RabbitNotFoundError < StandardError
@@ -20,6 +19,30 @@ end
 class RabbitError < StandardError
 end
 
+# supply a threaded implementation of Array.each where the block is
+# called on each item in parallel. each result is collected (order not
+# garunteed) and returned as another array
+class Array
+  def threaded_each &block
+    results = []
+    spawned = []
+
+    self.each do |x|
+      th = Thread.new do
+        results << block.call(x)
+      end
+
+      spawned << th
+    end
+
+    spawned.each do |th|
+      th.join
+    end
+
+    results
+  end
+end
+
 # a PKGBUILD parser
 class Pkgbuild
   attr_reader :depends
@@ -30,32 +53,27 @@ class Pkgbuild
   end
 
   def parse!
-    tm = ThreadManager.new
-    tm.execute_on :depends, :makedepends
-    tm.execute_with { |t| parse_bash_array t }
-    @depends = tm.execute!.flatten
-  end
-
-  private
-
-  def parse_bash_array varname
-    if @pkgbuild =~ /(^|\s)#{varname.to_s}=\((.*?)\)/m
-      # remove inline comments, join multiline statements, split on
-      # whitespace, pull out just the package name from a variety of
-      # quoting and/or version bounds
-      items = $2.split(/#.*?\n/m).join.split(/[\s]+/).collect do |item|
-        if item =~ /("|')([^><=]*)[><=]{0,2}.*\1/
-          $2
-        else
-          item
+    deps = [:depends, :makedepends].threaded_each do |varname|
+      if @pkgbuild =~ /(^|\s)#{varname.to_s}=\((.*?)\)/m
+        # remove inline comments, join multiline statements, split on
+        # whitespace, pull out just the package name from a variety of
+        # quoting and/or version bounds
+        items = $2.split(/#.*?\n/m).join.split(/[\s]+/).collect do |item|
+          if item =~ /("|')([^><=]*)[><=]{0,2}.*\1/
+            $2
+          else
+            item
+          end
         end
-      end
 
-      items.delete ""
-      items
-    else
-      []
+        items.delete ""
+        items
+      else
+        []
+      end
     end
+
+    @depends = deps.flatten
   end
 end
 
@@ -174,15 +192,11 @@ class Package
 
   # accepts Packages, returns { :targets => Packages, :pacman => names }
   def self.find_all_deps targets
-    pac_deps = []
-
-    targets.reverse!
-    targets_before = Array.new(targets)
-
-    tm = ThreadManager.new
-    tm.execute_on *targets
-    tm.execute_with do |pkg|
+    pac_deps    = []
+    new_targets = targets.reverse!.threaded_each do |pkg|
       begin
+        targets_new = []
+
         pkg.with_pkgbuild do |pkgbuild|
           pkgbuild.parse!
 
@@ -194,7 +208,10 @@ class Package
             next if targets.index {|p| p.name == ddep }
 
             begin
-              targets << find(ddep)
+              p = find ddep
+
+              targets     << p # add to master list
+              targets_new << p # store the new ones from this round
             rescue RabbitNotFoundError
               # cannot be installed via AUR, hopefully a repo package
               # todo: check that fact
@@ -203,7 +220,7 @@ class Package
           end
         end
 
-        nil
+        targets_new
 
       rescue RabbitNonError => e
         puts "#{pkg.name}: #{e}"
@@ -215,9 +232,7 @@ class Package
       end
     end
 
-    tm.execute!
-
-    new_targets = targets - targets_before
+    new_targets.flatten!
 
     unless new_targets.empty?
       new_deps  = find_all_deps new_targets
@@ -225,6 +240,8 @@ class Package
       pac_deps += new_deps[:pacman]
     end
 
+    # use uniq to account for the non-thread-safeness of this whole
+    # approach...
     return { :targets => targets.uniq { |p| p.name }.reverse,
               :pacman => pac_deps.uniq.reverse }
   end
