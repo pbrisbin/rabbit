@@ -1,8 +1,4 @@
 class ThreadManager
-  def initialize binding = nil
-    @binding = binding
-  end
-
   def execute_with &block
     @block = block
   end
