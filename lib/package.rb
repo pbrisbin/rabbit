@@ -19,10 +19,7 @@ end
 class RabbitError < StandardError
 end
 
-# supply a threaded implementation of Array.each where the block is
-# called on each item in parallel. each result is collected (order not
-# garunteed) and returned as another array
-class Array
+module ThreadedEach
   def threaded_each &block
     results = []
     spawned = []
@@ -41,6 +38,14 @@ class Array
 
     results
   end
+end
+
+class Enumerator
+  include ThreadedEach
+end
+
+class Array
+  include ThreadedEach
 end
 
 # a PKGBUILD parser
@@ -102,19 +107,20 @@ class Package
 
     targets = []
 
-    `pacman -Qm`.lines.each do |out|
+    `pacman -Qm`.lines.threaded_each do |out|
       name, version = out.split(' ')
 
       begin
         AurSearch.class_eval do
           call_rpc(:multiinfo, name) do |r|
             nversion = r['Version']
-
             if `vercmp '#{nversion}' '#{version}'`.to_i == 1
               targets << Package.new(r['Name'], nversion, AUR + r['URLPath'])
             end
           end
         end
+
+        nil
       rescue RabbitNotFoundError
         # ignore
       end
