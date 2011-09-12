@@ -1,16 +1,16 @@
-require 'errors'
+require 'rubygems'
+
 require 'cgi'
 require 'json'
 require 'net/http'
+require 'errors'
 
-AUR = "http://aur.archlinux.org"
+class Aur
+  URL = "http://aur.archlinux.org"
 
-class AurSearch
-  # executes a search. if multiple terms are passed, they are joined
-  # with a space and encoded as a single search argument
   def self.search term
     begin
-      call_rpc(:search, *term) do |result|
+      call_rpc(:search, term) do |result|
         outofdate = result['OutOfDate'] == '1' ? ' [out of date]' : ''
 
         puts "aur/#{result['Name']} #{result['Version']}#{outofdate}",
@@ -22,10 +22,9 @@ class AurSearch
     end
   end
 
-  # prints info for the passed packages
   def self.info term
     begin
-      call_rpc(:multiinfo, *term) do |result|
+      call_rpc(:multiinfo, term) do |result|
         outofdate = result['OutOfDate'] == '1' ? 'Yes' : 'No'
 
         puts "Repository      : aur",
@@ -37,34 +36,37 @@ class AurSearch
              ""
       end
 
-    rescue RabbitNotFoundError => e
+    rescue RabbitNotFoundError
       # ignore
     end
   end
 
-  # print the pkgbuild for the passed packages
-  def self.pkgbuild *term
-    call_rpc(:multiinfo, *term) do |result|
+  def self.pkgbuild term
+    call_rpc(:multiinfo, term) do |result|
       begin
-        url  = AUR + File.dirname(result['URLPath']) + '/PKGBUILD'
+        url  = URL + File.dirname(result['URLPath']) + '/PKGBUILD'
         resp = Net::HTTP.get_response(URI.parse(url))
-        puts resp.body, ''
+        if block_given?
+          yield resp.body
+        else
+          puts resp.body, ''
+        end
       rescue
         # ignore
       end
     end
   end
 
-  private
-
-  def self.call_rpc type, *term, &block
+  def self.call_rpc type, term, &block
     url = case type
       when :search
-        "#{AUR}/rpc.php?type=search&arg=#{CGI::escape(term.join(" "))}"
+        "#{URL}/rpc.php?type=search&arg=#{CGI::escape(term)}"
       when :multiinfo
-        arg = term.collect { |t| "&arg[]=" + CGI::escape(t) }.join
-        "#{AUR}/rpc.php?type=multiinfo#{arg}"
-    end
+        arg = term.split(' ').collect { |t| "&arg[]=" + CGI::escape(t) }.join
+        "#{URL}/rpc.php?type=multiinfo#{arg}"
+      else
+        raise RabbitError, "Invalid search type #{type}"
+      end
 
     begin
       resp = Net::HTTP.get_response(URI.parse(url))
@@ -74,7 +76,11 @@ class AurSearch
     end
 
     if json && json.has_key?('results') && json['results'].class == Array
-      json['results'].sort { |a,b| a['Name'] <=> b['Name'] }.each &block
+      if block_given?
+        json['results'].sort { |a,b| a['Name'] <=> b['Name'] }.each &block
+      end
+
+      json
     else
       raise RabbitNotFoundError, "No results round"
     end

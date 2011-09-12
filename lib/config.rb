@@ -10,7 +10,7 @@ class Config
     # default configuration
     @pacman            = "sudo pacman -U"
     @makepkg           = "makepkg --nocolor"
-    @sync_level        = 0
+    @sync_level        = :download
     @build_directory   = ENV['HOME'] + "/Sources"
     @package_directory = ENV['HOME'] + "/Packages"
     @discard_sources   = false
@@ -19,54 +19,37 @@ class Config
     @resolve_deps      = false
     @edit_pkgbuilds    = :always
     @ignore_packages   = []
+    @yml               = nil
+  end
+
+  def yml
+    # note: just a temp path for testing
+    #@yml ||= YAML.load_file "#{File.expand_path('~/Code/ruby/rabbit/rabbit.yml')}"
+    @yml ||= YAML.load_file "#{File.expand_path('~/Code/rabbit/rabbit.yml')}"
+  end
+
+  def read_yml_key key
+    instance_eval "@#{key} = yml['#{key}'] if yml.has_key? '#{key}'"
   end
 
   def self.load_from_file
     c = Config.new
-    c.load_from_file
-  end
 
-  def load_from_file
-    def read_key yml, key
-      instance_eval "@#{key} = yml['#{key}'] if yml.has_key? '#{key}'"
-    end
+    c.read_yml_key 'pacman'
+    c.read_yml_key 'makepkg'
+    c.read_yml_key 'build_directory'
+    c.read_yml_key 'package_directory'
+    c.read_yml_key 'discard_sources'
+    c.read_yml_key 'discard_tarball'
+    c.read_yml_key 'discard_package'
+    c.read_yml_key 'resolve_deps'
+    c.read_yml_key 'ignore_packages'
+    c.read_yml_key 'sync_level'
+    c.read_yml_key 'edit_pkgbuilds'
 
-    def read_mapped_key yml, key, mapping
-      instance_eval "@#{key} = mapping[yml['#{key}']] if yml.has_key? '#{key}'"
-    end
+    c.build_directory   = File.expand_path(c.build_directory)
+    c.package_directory = File.expand_path(c.package_directory)
 
-    # note: just a temp path for testing
-    yml = YAML.load_file "/home/patrick/Code/ruby/rabbit/rabbit.yml"
-
-    read_key yml, 'pacman'
-    read_key yml, 'makepkg'
-    read_key yml, 'build_directory'
-    read_key yml, 'package_directory'
-    read_key yml, 'discard_sources'
-    read_key yml, 'discard_tarball'
-    read_key yml, 'discard_package'
-    read_key yml, 'resolve_deps'
-    read_key yml, 'ignore_packages'
-
-    # map the symbols to integers to simplify the "how far do we go"
-    # check during installations.
-    read_mapped_key yml, 'sync_level', { :download => 0,
-                                         :extract  => 1,
-                                         :build    => 2,
-                                         :install  => 3 }
-
-    # this mapping just ensures a valid value was entered
-    read_mapped_key yml, 'edit_pkgbuilds', { :always => :always,
-                                             :never  => :never,
-                                             :prompt => :prompt }
-
-    # some post-user-input fixes
-    @sync_level     = :download unless @sync_level
-    @edit_pkgbuilds = :always   unless @edit_pkgbuilds
-
-    @build_directory.gsub!   /~/, ENV['HOME']
-    @package_directory.gsub! /~/, ENV['HOME']
-
-    return self
+    return c
   end
 end

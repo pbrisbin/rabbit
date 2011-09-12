@@ -1,63 +1,58 @@
+require 'rubygems'
 require 'aursearch'
 require 'errors'
 require 'fileutils'
 require 'open-uri'
+require 'pkgbuild'
 require 'threaded-each'
-
-# a PKGBUILD parser
-class Pkgbuild
-  attr_reader :depends
-
-  # argument is the pkgbuild contents as a string
-  def initialize pkgbuild
-    @pkgbuild = pkgbuild
-  end
-
-  def parse!
-    deps = [:depends, :makedepends].threaded_each do |varname|
-      if @pkgbuild =~ /(^|\s)#{varname.to_s}=\((.*?)\)/m
-        # remove inline comments, join multiline statements, split on
-        # whitespace, pull out just the package name from a variety of
-        # quoting and/or version bounds
-        items = $2.split(/#.*?\n/m).join.split(/[\s]+/).collect do |item|
-          if item =~ /("|')([^><=]*)[><=]{0,2}.*\1/
-            $2
-          else
-            item
-          end
-        end
-
-        items.delete ""
-        items
-      else
-        []
-      end
-    end
-
-    @depends = deps.flatten
-  end
-end
 
 class Package
   attr_reader :name, :version, :base_url, :archive
 
   def initialize name, version, url
-    @name     = name
-    @version  = version
-    @base_url = File.dirname  url
-    @archive  = File.basename url
+    @name       = name
+    @version    = version
+    @base_url   = File.dirname  url
+    @archive    = File.basename url
+    @pkgbuild   = nil
+    @built_pkgs = nil
   end
 
-  def self.find name
-    pkg = AurSearch.class_eval do
-      # access private call_rpc method
-      call_rpc(:multiinfo, name) do |r|
-        return Package.new r['Name'], r['Version'], AUR + r['URLPath']
+  def pkgbuild
+    unless @pkgbuild
+      begin
+        url  = @base_url + '/PKGBUILD'
+        resp = Net::HTTP.get_response(URI.parse(url))
+        pkgbuild = Pkgbuild.new(resp.body)
+      rescue => e
+        STDERR.puts e.message
+        raise RabbitNonError, "Error retrieving the PKGBUILD"
       end
     end
+
+    @pkgbuild
   end
 
-  # accepts nothing, updates if available
+  def built_pkgs
+    unless @built_pkgs
+      Dir.glob("#{@name}/*") do |fp|
+        @built_pkgs << fp if fp =~ /.*\.pkg\.tar\.[gx]z$/
+      end
+
+      if @built_pkgs.empty?
+        raise RabbitNonError, "No packages found to save"
+      end
+    end
+
+    @built_pkgs
+  end
+
+
+  def self.find name
+    json = Aur.call_rpc(:multiinfo, name)
+    Package.new json['Name'], json['Version'], Aur::URL + json['URLPath']
+  end
+
   def self.update
     puts "checking for available upgrades..."
 
@@ -67,12 +62,10 @@ class Package
       name, version = out.split(' ')
 
       begin
-        AurSearch.class_eval do
-          call_rpc(:multiinfo, name) do |r|
-            nversion = r['Version']
-            if `vercmp '#{nversion}' '#{version}'`.to_i == 1
-              targets << Package.new(r['Name'], nversion, AUR + r['URLPath'])
-            end
+        Aur.call_rpc(:multiinfo, name) do |r|
+          nversion = r['Version']
+          if `vercmp '#{nversion}' '#{version}'`.to_i == 1
+            targets << Package.new(r['Name'], nversion, Aur::URL + r['URLPath'])
           end
         end
 
@@ -93,7 +86,7 @@ class Package
       begin
         targets << find(name)
       rescue RabbitNotFoundError
-        puts "#{name}: package not found"
+        STDERR.puts "#{name}: package not found"
       end
     end
 
@@ -125,7 +118,7 @@ class Package
     unless Dir.exists? $config.build_directory
       begin FileUtils.mkdir_p $config.build_directory
       rescue => e
-        puts e.message
+        STDERR.puts e.message
         raise RabbitError, "Could not create #{$config.build_directory}."
       end
     end
@@ -134,10 +127,19 @@ class Package
 
     targets.each do |pkg|
       begin
-        pkg.download
-        pkg.extract unless $config.sync_level < 1
-        pkg.build   unless $config.sync_level < 2
-        pkg.install unless $config.sync_level < 3
+        pkg.download if $config.sync_level == :download
+        pkg.extract  if $config.sync_level == :extract
+
+        if $config.sync_level == :build
+          pkg.build
+          pkg.save_pkgs
+        end
+
+        if $config.sync_level == :install
+          pkg.build
+          pkg.install
+          pkg.save_pkgs
+        end
 
       rescue RabbitNotFoundError => e
         STDERR.puts e.message
@@ -159,45 +161,40 @@ class Package
       begin
         targets_new = []
 
-        pkg.with_pkgbuild do |pkgbuild|
-          pkgbuild.parse!
+        args = pkg.pkgbuild.depends.collect { |x| "'#{x}'" }.join(' ')
+        deps = `pacman -T -- #{args}`.split(' ')
 
-          args = pkgbuild.depends.collect { |x| "'#{x}'" }.join(' ')
-          deps = `pacman -T -- #{args}`.split(' ')
+        deps.each do |ddep|
+          next if pac_deps.include? ddep
+          next if targets.index {|p| p.name == ddep }
 
-          deps.each do |ddep|
-            next if pac_deps.include? ddep
-            next if targets.index {|p| p.name == ddep }
+          begin
+            p = find ddep
 
-            begin
-              p = find ddep
-
-              targets     << p # add to master list
-              targets_new << p # store the new ones from this round
-            rescue RabbitNotFoundError
-              # cannot be installed via AUR, hopefully a repo package
-              # todo: check that fact
-              pac_deps << ddep
-            end
+            targets     << p # add to master list
+            targets_new << p # store the new ones from this round
+          rescue RabbitNotFoundError
+            # cannot be installed via AUR, hopefully a repo package
+            # todo: check that fact
+            pac_deps << ddep
           end
+        end
         end
 
         targets_new
 
       rescue RabbitNonError => e
-        puts "#{pkg.name}: #{e}"
+        STDERR.puts "#{pkg.name}: #{e}"
         next
 
       rescue RabbitError => e
-        puts "#{pkg.name}: #{e}"
+        STDERR.puts "#{pkg.name}: #{e}"
         exit 1
       end
     end
 
-    new_targets.flatten!
-
     unless new_targets.empty?
-      new_deps  = find_all_deps new_targets
+      new_deps  = find_all_deps new_targets.flatten
       targets  += new_deps[:targets]
       pac_deps += new_deps[:pacman]
     end
@@ -208,20 +205,6 @@ class Package
               :pacman => pac_deps.uniq.reverse }
   end
 
-  # excute a block with a Package's pkgbuild
-  def with_pkgbuild &block
-    begin
-      url  = @base_url + '/PKGBUILD'
-      resp = Net::HTTP.get_response(URI.parse(url))
-      pkgbuild = Pkgbuild.new(resp.body)
-      block.call pkgbuild
-    rescue => e
-      puts e.message
-      raise RabbitNonError, "Error retrieving the PKGBUILD"
-    end
-  end
-
-  # download the tarball into the current directory
   def download
     archive_url = "#{@base_url}/#{@archive}"
 
@@ -230,7 +213,7 @@ class Package
       f = open(@archive, "wb")
       f.write(a.read)
     rescue => e
-      puts e.message
+      STDERR.puts e.message
       raise RabbitNonError, "Error downloading the package"
     ensure
       a.close
@@ -238,100 +221,95 @@ class Package
     end
   end
 
-  # extract the downloaded archive
   def extract
-    if File.exists? @archive
-      unless system "tar xzf \"#{@archive}\""
-        raise RabbitNonError, "Tar threw an error"
+    # download if we haven't already
+    unless File.exists? @archive
+      begin download
+      rescue RabbitNonError => e
+        STDERR.puts e.message
+        return
       end
-
-      # maybe discard the taball
-      File.delete @archive if $config.discard_tarball
-    else
-      raise RabbitNonError, "#{archive}: file not found"
     end
+
+    unless system "tar xzf \"#{@archive}\""
+      raise RabbitNonError, "Tar threw an error"
+    end
+
+    File.delete @archive if $config.discard_tarball
   end
 
-  # build the package
   def build
+    # extract if we haven't already
+    unless Dir.exists? @name
+      begin extract
+      rescue RabbitNonError => e
+        STDERR.puts e.message
+        return
+      end
+    end
+
     oldpwd = Dir.pwd
-    if Dir.exists? @name
-      Dir.chdir @name
+    Dir.chdir @name
 
-      if File.exists? 'PKGBUILD'
-        unless system $config.makepkg
-          raise RabbitNonError "Makepkg threw an error"
-        end
-
-        # maybe discard the sources
-        if $config.discard_sources
-          Dir.glob("./*") do |fp|
-            FileUtils.rm_rf fp unless fp =~ /.*\.pkg\.tar\.[gx]z$/
-          end
-        end
-      else
-        raise RabbitNonError, "PKGBUILD: file not found"
+    if File.exists? 'PKGBUILD'
+      unless system $config.makepkg
+        raise RabbitNonError, "Makepkg threw an error"
       end
 
-      Dir.chdir oldpwd
+      # maybe discard the sources
+      if $config.discard_sources
+        Dir.glob("./*") do |fp|
+          # keep built packages
+          FileUtils.rm_rf fp unless fp =~ /.*\.pkg\.tar\.[gx]z$/
+        end
+      end
+    else
+      raise RabbitNonError, "PKGBUILD: file not found"
+    end
+
+    Dir.chdir oldpwd
+  end
+
+  def save_pkgs
+    unless Dir.exists? $config.package_directory
+      begin FileUtils.mkdir_p $config.package_directory
+      rescue => e
+        @built_pkgs = [] # so we don't try to save them
+        STDERR.puts e.message
+        raise RabbitNonError, "Could not create #{$config.package_directory}."
+      end
+    end
+
+    @built_pkgs.each do |pkg|
+      begin
+        from = open(pkg, "rb")
+        to   = open("#{$config.package_directory}/#{File.basename pkg}", "wb")
+        to.write(from.read)
+
+        File.delete pkg
+      rescue => e
+        STDERR.puts e.message
+        raise RabbitNonError, "Error saving the package"
+      ensure
+        from.close
+        to.close
+      end
+    end
+
+    begin Dir.delete @name
+    rescue Errno::ENOTEMPTY
+      # silenty ignore
     end
   end
 
-  # install all built packages
   def install
-    to_install = []
+    args = @built_pkgs.collect { |a| "'#{a}'" }.join(' ')
 
-    # find all built packages
-    Dir.glob("#{@name}/*") do |fp|
-      to_install << fp if fp =~ /.*\.pkg\.tar\.[gx]z$/
-    end
-
-    if to_install.empty?
-      raise RabbitNonError, "No packages found to install"
-    end
-
-    # make a quote separated string of args
-    args = to_install.collect { |a| "'#{a}'" }.join(' ')
-
-    # install all of them
     unless system "#{$config.pacman} #{args}"
       raise RabbitNonError, "Pacman threw an error"
     end
 
     if $config.discard_package
-      to_install.each { |pkg| File.delete pkg }
-    else
-      unless Dir.exists? $config.package_directory
-        begin FileUtils.mkdir_p $config.package_directory
-        rescue => e
-          to_install = [] # so we don't try to save them
-          puts e.message
-          raise RabbitNonError, "Could not create #{$config.package_directory}."
-        end
-      end
-
-      to_install.each do |pkg|
-        begin
-          from = open(pkg, "rb")
-          to   = open("#{$config.package_directory}/#{File.basename pkg}", "wb")
-          to.write(from.read)
-
-          File.delete pkg
-        rescue => e
-          puts e.message
-          raise RabbitNonError, "Error saving the package"
-        ensure
-          from.close
-          to.close
-        end
-      end
-
-      if Dir.exists? @name
-        begin Dir.delete @name
-        rescue Errno::ENOTEMPTY
-          # silenty ignore
-        end
-      end
+      @built_pkgs.each { |pkg| File.delete pkg }
     end
-  end
 end
