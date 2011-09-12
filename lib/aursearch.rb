@@ -1,3 +1,4 @@
+require 'errors'
 require 'cgi'
 require 'json'
 require 'net/http'

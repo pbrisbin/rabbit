@@ -1,52 +1,8 @@
 require 'aursearch'
+require 'errors'
 require 'fileutils'
 require 'open-uri'
-
-# when a search returns no results
-class RabbitNotFoundError < StandardError
-end
-
-# an error that should stop processing of that target only
-class RabbitNonError < StandardError
-end
-
-# a build error on a dependecy must stop the processesing of its parent
-# and any other deps left to build
-class RabbitBuildError < StandardError
-end
-
-# an error that should stop us entirely
-class RabbitError < StandardError
-end
-
-module ThreadedEach
-  def threaded_each &block
-    results = []
-    spawned = []
-
-    self.each do |x|
-      th = Thread.new do
-        results << block.call(x)
-      end
-
-      spawned << th
-    end
-
-    spawned.each do |th|
-      th.join
-    end
-
-    results
-  end
-end
-
-class Enumerator
-  include ThreadedEach
-end
-
-class Array
-  include ThreadedEach
-end
+require 'threaded-each'
 
 # a PKGBUILD parser
 class Pkgbuild
