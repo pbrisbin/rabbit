@@ -1,9 +1,8 @@
-require 'rubygems'
-
 require 'cgi'
 require 'json'
 require 'net/http'
-require 'errors'
+
+require_relative 'errors'
 
 class Aur
   URL = "http://aur.archlinux.org"

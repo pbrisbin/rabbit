@@ -1,10 +1,10 @@
-require 'rubygems'
-require 'aursearch'
-require 'errors'
 require 'fileutils'
 require 'open-uri'
-require 'pkgbuild'
-require 'threaded-each'
+
+require_relative 'aursearch'
+require_relative 'errors'
+require_relative 'pkgbuild'
+require_relative 'threaded-each'
 
 class Package
   attr_reader :name, :version, :base_url, :archive

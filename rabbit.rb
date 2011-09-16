@@ -3,15 +3,10 @@
 # rabbit. an aur-helper in ruby. this is only a toy.
 #
 ###
-require 'pathname'
 
-$LOAD_PATH << # add . and ./lib in spite of symlinks
-  File.dirname(Pathname.new(File.expand_path(__FILE__)).realpath) <<
-  File.dirname(Pathname.new(File.expand_path(__FILE__)).realpath) + '/lib'
-
-require 'aursearch'
-require 'config'
-require 'package'
+require_relative 'lib/aursearch'
+require_relative 'lib/config'
+require_relative 'lib/package'
 
 Signal.trap("INT") { exit 1 }
 
