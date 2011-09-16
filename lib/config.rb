@@ -1,10 +1,10 @@
 require 'yaml'
 
 class Config
-  attr_accessor :pacman, :makepkg, :sync_level,
-    :build_directory, :package_directory,
-    :discard_sources, :discard_tarball, :discard_package,
-    :resolve_deps, :edit_pkgbuilds, :ignore_packages
+  attr_accessor :pacman, :makepkg, :sync_level, :build_directory,
+    :package_directory, :discard_sources, :discard_tarball,
+    :discard_package, :resolve_deps, :edit_pkgbuilds, :ignore_packages,
+    :yml
 
   def initialize
     # default configuration
@@ -22,18 +22,13 @@ class Config
     @yml               = nil
   end
 
-  def yml
-    # note: just a temp path for testing
-    #@yml ||= YAML.load_file "#{File.expand_path('~/Code/ruby/rabbit/rabbit.yml')}"
-    @yml ||= YAML.load_file "#{File.expand_path('~/Code/rabbit/rabbit.yml')}"
-  end
-
   def read_yml_key key
     instance_eval "@#{key} = yml['#{key}'] if yml.has_key? '#{key}'"
   end
 
-  def self.load_from_file
+  def self.load_from_file fp = '/etc/rabbit.yml'
     c = Config.new
+    c.yml = YAML.load_file fp
 
     c.read_yml_key 'pacman'
     c.read_yml_key 'makepkg'
