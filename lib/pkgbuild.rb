@@ -6,7 +6,8 @@ class Pkgbuild
 
   def depends
     unless @depends
-      deps = [:depends, :makedepends].each do |varname|
+      deps = []
+      [:depends, :makedepends].each do |varname|
         if @pkgbuild =~ /(^|\s)#{varname.to_s}=\((.*?)\)/m
           # remove inline comments, join multiline statements, split on
           # whitespace, pull out just the package name from a variety of
@@ -20,9 +21,7 @@ class Pkgbuild
           end
 
           items.delete ""
-          items
-        else
-          []
+          deps << items
         end
       end
 

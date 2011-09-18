@@ -23,7 +23,7 @@ class Package
       begin
         url  = @base_url + '/PKGBUILD'
         resp = Net::HTTP.get_response(URI.parse(url))
-        pkgbuild = Pkgbuild.new(resp.body)
+        @pkgbuild = Pkgbuild.new(resp.body)
       rescue => e
         STDERR.puts e.message
         raise RabbitNonError, "Error retrieving the PKGBUILD"
@@ -35,6 +35,8 @@ class Package
 
   def built_pkgs
     unless @built_pkgs
+      @built_pkgs = []
+
       Dir.glob("#{@name}/*") do |fp|
         @built_pkgs << fp if fp =~ /.*\.pkg\.tar\.[gx]z$/
       end
@@ -47,10 +49,10 @@ class Package
     @built_pkgs
   end
 
-
   def self.find name
     json = Aur.call_rpc(:multiinfo, name)
-    Package.new json['Name'], json['Version'], Aur::URL + json['URLPath']
+    r    = json['results'][0]
+    Package.new r['Name'], r['Version'], Aur::URL + r['URLPath']
   end
 
   def self.update
@@ -65,7 +67,7 @@ class Package
         Aur.call_rpc(:multiinfo, name) do |r|
           nversion = r['Version']
           if `vercmp '#{nversion}' '#{version}'`.to_i == 1
-            targets << Package.new(r['Name'], nversion, Aur::URL + r['URLPath'])
+            targets << Package.new(r['Name'], nversion, "#{Aur::URL}#{r['URLPath']}")
           end
         end
 
@@ -164,7 +166,7 @@ class Package
         args = pkg.pkgbuild.depends.collect { |x| "'#{x}'" }.join(' ')
         deps = `pacman -T -- #{args}`.split(' ')
 
-        deps.each do |ddep|
+        deps.threaded_each do |ddep|
           next if pac_deps.include? ddep
           next if targets.index {|p| p.name == ddep }
 
@@ -179,16 +181,15 @@ class Package
             pac_deps << ddep
           end
         end
-        end
 
-        targets_new
+        targets_new.uniq { |p| p.name }
 
       rescue RabbitNonError => e
-        STDERR.puts "#{pkg.name}: #{e}"
+        STDERR.print "#{pkg.name}: #{e}\n"
         next
 
       rescue RabbitError => e
-        STDERR.puts "#{pkg.name}: #{e}"
+        STDERR.print "#{pkg.name}: #{e}\n"
         exit 1
       end
     end
@@ -240,7 +241,7 @@ class Package
 
   def build
     # extract if we haven't already
-    unless Dir.exists? @name
+    unless File.exists? "#{@name}/PKGBUILD"
       begin extract
       rescue RabbitNonError => e
         STDERR.puts e.message
@@ -280,7 +281,7 @@ class Package
       end
     end
 
-    @built_pkgs.each do |pkg|
+    built_pkgs.each do |pkg|
       begin
         from = open(pkg, "rb")
         to   = open("#{$config.package_directory}/#{File.basename pkg}", "wb")
@@ -303,13 +304,14 @@ class Package
   end
 
   def install
-    args = @built_pkgs.collect { |a| "'#{a}'" }.join(' ')
+    args = built_pkgs.collect { |a| "'#{a}'" }.join(' ')
 
     unless system "#{$config.pacman} #{args}"
       raise RabbitNonError, "Pacman threw an error"
     end
 
     if $config.discard_package
-      @built_pkgs.each { |pkg| File.delete pkg }
+      built_pkgs.each { |pkg| File.delete pkg }
     end
+  end
 end
