@@ -110,7 +110,7 @@ class Package
     end
 
     print %{
-      Targets (#{targets.length}): #{targets.collect { |x| x.name }.join(' ')}
+      Targets (#{targets.length}): #{targets.collect { |x| "#{x.name}-#{x.version}" }.join(' ')}
 
       Proceed with installation (y/n)? }.gsub(/^ +/,'')
 
