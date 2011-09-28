@@ -10,7 +10,7 @@ require_relative 'lib/package'
 
 Signal.trap("INT") { exit 1 }
 
-$config = Config.load_from_file './rabbit.yml'
+$config = Config.load_from_file
 
 case ARGV.shift
   when '-Ss'; Aur.search   ARGV.join(' ')
