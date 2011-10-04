@@ -42,7 +42,7 @@ class Package
       end
 
       if @built_pkgs.empty?
-        raise RabbitNonError, "No packages found to save"
+        raise RabbitNonError, "No built packages found"
       end
     end
 
@@ -125,33 +125,33 @@ class Package
       end
     end
 
-    Dir.chdir $config.build_directory
+    Dir.chdir $config.build_directory do
+      targets.each do |pkg|
+        begin
+          pkg.download if $config.sync_level == :download
+          pkg.extract  if $config.sync_level == :extract
 
-    targets.each do |pkg|
-      begin
-        pkg.download if $config.sync_level == :download
-        pkg.extract  if $config.sync_level == :extract
+          if $config.sync_level == :build
+            pkg.build
+            pkg.save_pkgs
+          end
 
-        if $config.sync_level == :build
-          pkg.build
-          pkg.save_pkgs
+          if $config.sync_level == :install
+            pkg.build
+            pkg.install
+            pkg.save_pkgs
+          end
+
+        rescue RabbitNotFoundError => e
+          STDERR.puts e.message
+
+        rescue RabbitNonError => e
+          STDERR.puts e.message, "Skipping #{pkg.name}."
+
+        rescue RabbitError => e
+          STDERR.puts e.message
+          exit 1
         end
-
-        if $config.sync_level == :install
-          pkg.build
-          pkg.install
-          pkg.save_pkgs
-        end
-
-      rescue RabbitNotFoundError => e
-        STDERR.puts e.message
-
-      rescue RabbitNonError => e
-        STDERR.puts e.message, "Skipping #{pkg.name}."
-
-      rescue RabbitError => e
-        STDERR.puts e.message
-        exit 1
       end
     end
   end
@@ -249,26 +249,23 @@ class Package
       end
     end
 
-    oldpwd = Dir.pwd
-    Dir.chdir @name
-
-    if File.exists? 'PKGBUILD'
-      unless system $config.makepkg
-        raise RabbitNonError, "Makepkg threw an error"
-      end
-
-      # maybe discard the sources
-      if $config.discard_sources
-        Dir.glob("./*") do |fp|
-          # keep built packages
-          FileUtils.rm_rf fp unless fp =~ /.*\.pkg\.tar\.[gx]z$/
+    Dir.chdir @name do
+      if File.exists? 'PKGBUILD'
+        unless system $config.makepkg
+          raise RabbitNonError, "Makepkg threw an error"
         end
-      end
-    else
-      raise RabbitNonError, "PKGBUILD: file not found"
-    end
 
-    Dir.chdir oldpwd
+        # maybe discard the sources
+        if $config.discard_sources
+          Dir.glob("./*") do |fp|
+            # keep built packages
+            FileUtils.rm_rf fp unless fp =~ /.*\.pkg\.tar\.[gx]z$/
+          end
+        end
+      else
+        raise RabbitNonError, "PKGBUILD: file not found"
+      end
+    end
   end
 
   def save_pkgs
