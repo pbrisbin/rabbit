@@ -1,7 +1,3 @@
-# when a search returns no results
-class RabbitNotFoundError < StandardError;
-end
-
 # an error that should stop processing of that target only
 class RabbitNonError < StandardError
 end
