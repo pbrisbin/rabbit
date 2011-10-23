@@ -4,13 +4,9 @@
 #
 ###
 
-require_relative 'lib/aursearch'
-require_relative 'lib/config'
-require_relative 'lib/package'
-
-Signal.trap("INT") { exit 1 }
-
-$config = Config.load_from_file
+'aursearch'
+'config'
+'package'
 
 class Rabbit
   include AurSearch
@@ -35,11 +31,15 @@ class Rabbit
   end
 end
 
+Signal.trap("INT") { exit 1 }
+
+$config = Config.load_from_file
+
 case ARGV.shift
   when '-Ss'; Rabbit.execute_search(:search  , ARGV.join(' '))
   when '-Si'; Rabbit.execute_search(:info    , ARGV.join(' '))
   when '-Sp'; Rabbit.execute_search(:pkgbuild, ARGV.join(' '))
-  when '-Su'; Package.update
 
+  #when '-Su'; Package.update
   #when '-S' ; Package.install ARGV
 end
