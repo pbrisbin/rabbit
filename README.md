@@ -58,4 +58,12 @@ user    0m0.757s
 sys     0m0.493s
 ~~~
 
+### Installation
+
+If you're so inclined...
+
+1. Install the `jeweler` gem
+2. Clone this repo
+3. `rake install`
+
 [aurget]: https://github.com/pbrisbin/aurget
