@@ -1,8 +1,8 @@
 require 'fileutils'
 require 'open-uri'
-require 'aursearch'
-require 'pkgbuild'
 require 'threaded-each'
+require 'rabbit/aursearch'
+require 'rabbit/pkgbuild'
 
 # version comparisons
 class String

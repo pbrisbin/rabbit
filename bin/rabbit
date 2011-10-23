@@ -4,9 +4,9 @@
 #
 ###
 
-'aursearch'
-'config'
-'package'
+require 'rabbit/aursearch'
+require 'rabbit/config'
+require 'rabbit/package'
 
 class Rabbit
   include AurSearch
