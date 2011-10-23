@@ -7,7 +7,7 @@ class PkgbuildTest < Test::Unit::TestCase
     File.open('test/test_pkgbuilds/aurget') do |f|
       contents = f.read
       pkgbuild = Pkgbuild.new contents
-      assert pkgbuild.depends.empty?
+      assert pkgbuild.depends.empty?, "Aurget should have no deps"
     end
   end
 
@@ -45,7 +45,7 @@ class PkgbuildTest < Test::Unit::TestCase
     File.open('test/test_pkgbuilds/yesod') do |f|
       contents = f.read
       pkgbuild = Pkgbuild.new contents
-      assert_equal expected_deps, pkgbuild.depends
+      assert_equal expected_deps, pkgbuild.depends, "Yesod should have a lot of deps"
     end
   end
 end

@@ -13,11 +13,7 @@ class Pkgbuild
           # whitespace, pull out just the package name from a variety of
           # quoting and/or version bounds
           items = $2.split(/#.*?\n/m).join.split(/[\s]+/).collect do |item|
-            if item =~ /("|')([^><=]*)[><=]{0,2}.*\1/
-              $2
-            else
-              item
-            end
+            item =~ /("|')([^><=]*)[><=]{0,2}.*\1/ ? $2 : item
           end
 
           items.delete ""
