@@ -1,5 +1,5 @@
 require 'test/unit'
-require_relative'../lib/aursearch'
+require_relative'../lib/rabbit/aursearch'
 
 class AurSearchTest < Test::Unit::TestCase
   include AurSearch

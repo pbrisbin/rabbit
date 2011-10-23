@@ -1,6 +1,6 @@
 require 'test/unit'
 
-require_relative '../lib/config'
+require_relative '../lib/rabbit/config'
 
 class RabbitConfigDefaultTest < Test::Unit::TestCase
   def setup

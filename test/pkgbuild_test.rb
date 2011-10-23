@@ -1,6 +1,6 @@
 require 'test/unit'
 
-require_relative '../lib/pkgbuild'
+require_relative '../lib/rabbit/pkgbuild'
 
 class PkgbuildTest < Test::Unit::TestCase
   def test_no_deps

@@ -1,7 +1,7 @@
 require 'test/unit'
 require 'fileutils'
 
-require_relative '../lib/package'
+require_relative '../lib/rabbit/package'
 
 class PackageTest < Test::Unit::TestCase
   def setup
