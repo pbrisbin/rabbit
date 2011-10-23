@@ -1,10 +1,10 @@
 require 'fileutils'
 require 'open-uri'
+require 'aursearch'
+require 'pkgbuild'
+require 'threaded-each'
 
-require_relative 'aursearch'
-require_relative 'pkgbuild'
-require_relative 'threaded-each'
-
+# version comparisons
 class String
   def newer_than?(other)
     vercmp(self, other) == 1
@@ -68,117 +68,117 @@ module Package
       exit 1
     end
 
-    def pkgbuild
-      unless @pkgbuild
-        url  = @base_url + '/PKGBUILD'
-        resp = Net::HTTP.get_response(URI.parse(url))
-        @pkgbuild = Pkgbuild.new(resp.body)
-      end
+    #def pkgbuild
+      #unless @pkgbuild
+        #url  = @base_url + '/PKGBUILD'
+        #resp = Net::HTTP.get_response(URI.parse(url))
+        #@pkgbuild = Pkgbuild.new(resp.body)
+      #end
 
-      @pkgbuild
-    rescue
-      raise SkipError
-    end
+      #@pkgbuild
+    #rescue
+      #raise SkipError
+    #end
 
-    def built_pkgs
-      unless @built_pkgs
-        @built_pkgs = []
+    #def built_pkgs
+      #unless @built_pkgs
+        #@built_pkgs = []
 
-        Dir.glob("#{@name}/*") do |fp|
-          @built_pkgs << fp if fp =~ /.*\.pkg\.tar\.[gx]z$/
-        end
-      end
+        #Dir.glob("#{@name}/*") do |fp|
+          #@built_pkgs << fp if fp =~ /.*\.pkg\.tar\.[gx]z$/
+        #end
+      #end
 
-      @built_pkgs
-    end
+      #@built_pkgs
+    #end
 
-    def download
-      archive_url = "#{@base_url}/#{@archive}"
+    #def download
+      #archive_url = "#{@base_url}/#{@archive}"
 
-      a = open(archive_url)
-      f = open(@archive, "wb")
-      f.write(a.read)
+      #a = open(archive_url)
+      #f = open(@archive, "wb")
+      #f.write(a.read)
 
-    rescue => e
-      STDERR.puts e.message
-      raise SkipError
-    ensure
-      a.close
-      f.close
-    end
+    #rescue => e
+      #STDERR.puts e.message
+      #raise SkipError
+    #ensure
+      #a.close
+      #f.close
+    #end
 
-    def extract
-      unless File.exists? @archive
-        begin download
-        rescue SkipError => e
-          STDERR.puts e.message
-          return
-        end
-      end
+    #def extract
+      #unless File.exists? @archive
+        #begin download
+        #rescue SkipError => e
+          #STDERR.puts e.message
+          #return
+        #end
+      #end
 
-      raise SkipError unless system "tar xzf \"#{@archive}\""
+      #raise SkipError unless system "tar xzf \"#{@archive}\""
 
-      File.delete @archive if $config.discard_tarball
-    end
+      #File.delete @archive if $config.discard_tarball
+    #end
 
-    def build
-      unless File.exists? "#{@name}/PKGBUILD"
-        begin extract
-        rescue SkipError => e
-          STDERR.puts e.message
-          return
-        end
-      end
+    #def build
+      #unless File.exists? "#{@name}/PKGBUILD"
+        #begin extract
+        #rescue SkipError => e
+          #STDERR.puts e.message
+          #return
+        #end
+      #end
 
-      Dir.chdir @name do
-        raise SkipError unless File.exists? 'PKGBUILD'
-        raise SkipError unless system $config.makepkg
+      #Dir.chdir @name do
+        #raise SkipError unless File.exists? 'PKGBUILD'
+        #raise SkipError unless system $config.makepkg
 
-        # maybe discard the sources
-        if $config.discard_sources
-          Dir.glob("./*") do |fp|
-            # keep built packages
-            FileUtils.rm_rf fp unless fp =~ /.*\.pkg\.tar\.[gx]z$/
-          end
-        end
-      end
-    end
+        ## maybe discard the sources
+        #if $config.discard_sources
+          #Dir.glob("./*") do |fp|
+            ## keep built packages
+            #FileUtils.rm_rf fp unless fp =~ /.*\.pkg\.tar\.[gx]z$/
+          #end
+        #end
+      #end
+    #end
 
-    def save_pkgs
-      unless Dir.exists? $config.package_directory
-        begin FileUtils.mkdir_p $config.package_directory
-        rescue => e
-          @built_pkgs = [] # so we don't try to save them
-          STDERR.puts e.message
-          raise SkipError
-        end
-      end
+    #def save_pkgs
+      #unless Dir.exists? $config.package_directory
+        #begin FileUtils.mkdir_p $config.package_directory
+        #rescue => e
+          #@built_pkgs = [] # so we don't try to save them
+          #STDERR.puts e.message
+          #raise SkipError
+        #end
+      #end
 
-      built_pkgs.each do |pkg|
-        begin
-          from = open(pkg, "rb")
-          to   = open("#{$config.package_directory}/#{File.basename pkg}", "wb")
-          to.write(from.read)
+      #built_pkgs.each do |pkg|
+        #begin
+          #from = open(pkg, "rb")
+          #to   = open("#{$config.package_directory}/#{File.basename pkg}", "wb")
+          #to.write(from.read)
 
-          File.delete pkg
-        rescue => e
-          STDERR.puts e.message
-          raise SkipError
-        ensure
-          from.close
-          to.close
-        end
-      end
+          #File.delete pkg
+        #rescue => e
+          #STDERR.puts e.message
+          #raise SkipError
+        #ensure
+          #from.close
+          #to.close
+        #end
+      #end
 
-      # silently ignore
-      Dir.delete @name rescue Errno::ENOTEMPTY
-    end
+      ## silently ignore
+      #Dir.delete @name rescue Errno::ENOTEMPTY
+    #end
 
-    def install
-      args = built_pkgs.collect { |a| "'#{a}'" }.join(' ')
-      raise SkipError unless system "#{$config.pacman} #{args}"
-      built_pkgs.each { |pkg| File.delete pkg } if $config.discard_package
-    end
+    #def install
+      #args = built_pkgs.collect { |a| "'#{a}'" }.join(' ')
+      #raise SkipError unless system "#{$config.pacman} #{args}"
+      #built_pkgs.each { |pkg| File.delete pkg } if $config.discard_package
+    #end
   end
 
   def self.update
