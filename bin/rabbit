@@ -33,7 +33,7 @@ end
 
 Signal.trap("INT") { exit 1 }
 
-$config = Config.load_from_file
+$config = RabbitConfig.load_from_file
 
 case ARGV.shift
   when '-Ss'; Rabbit.execute_search(:search  , ARGV.join(' '))

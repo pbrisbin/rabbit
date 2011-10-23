@@ -2,9 +2,9 @@ require 'test/unit'
 
 require_relative '../lib/config'
 
-class ConfigDefaultTest < Test::Unit::TestCase
+class RabbitConfigDefaultTest < Test::Unit::TestCase
   def setup
-    @config = Config.new
+    @config = RabbitConfig.new
   end
 
   def test_yml_undefined
@@ -29,9 +29,9 @@ class ConfigDefaultTest < Test::Unit::TestCase
   end
 end
 
-class ConfigLoadTest < Test::Unit::TestCase
+class RabbitConfigLoadTest < Test::Unit::TestCase
   def setup
-    @config = Config.load_from_file "test/fake_config.yml"
+    @config = RabbitConfig.load_from_file "test/fake_config.yml"
   end
 
   def test_yml_defined

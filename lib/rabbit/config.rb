@@ -1,6 +1,6 @@
 require 'yaml'
 
-class Config
+class RabbitConfig
   attr_accessor :pacman, :makepkg, :sync_level, :build_directory,
     :package_directory, :discard_sources, :discard_tarball,
     :discard_package, :resolve_deps, :edit_pkgbuilds, :ignore_packages,
@@ -27,7 +27,7 @@ class Config
   end
 
   def self.load_from_file fp = '/etc/rabbit.yml'
-    c = Config.new
+    c = RabbitConfig.new
     c.yml = YAML.load_file fp
 
     c.read_yml_key 'pacman'
