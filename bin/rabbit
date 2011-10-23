@@ -39,7 +39,7 @@ case ARGV.shift
   when '-Ss'; Rabbit.execute_search(:search  , ARGV.join(' '))
   when '-Si'; Rabbit.execute_search(:info    , ARGV.join(' '))
   when '-Sp'; Rabbit.execute_search(:pkgbuild, ARGV.join(' '))
+  when '-Su'; Package.update
 
-  #when '-Su'; Package.update
   #when '-S' ; Package.install ARGV
 end

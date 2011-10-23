@@ -56,12 +56,15 @@ module Package
     end
 
     def self.find_pkgs(names, &block)
+      pkgs = []
       url = AurSearch.json_request_url(:info, names.join(' '))
       raise NotFoundError unless url
 
       AurSearch.with_json_response(url) do |json|
         pkgs = init_from_json(json, &block)
       end
+
+      pkgs
 
     rescue NotFoundError => e
       STDERR.puts "Package not found"
@@ -188,7 +191,7 @@ module Package
 
     `pacman -Qm`.lines.threaded_each do |out|
       name, version = out.split(' ')
-      pkg_hash << { name => version }
+      pkg_hash.merge!({ name => version })
     end
 
     targets = AurPackage.find_pkgs(pkg_hash.keys) do |result|
