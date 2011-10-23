@@ -5,6 +5,22 @@ require_relative 'aursearch'
 require_relative 'pkgbuild'
 require_relative 'threaded-each'
 
+class String
+  def newer_than?(other)
+    vercmp(self, other) == 1
+  end
+
+  def older_than?(other)
+    vercmp(self, other) == -1
+  end
+
+  private
+
+  def vercmp(a, b)
+    `vercmp '#{a}' '#{b}'`.to_i
+  end
+end
+
 module Package
   class NotFoundError < StandardError; end
   class SkipError     < StandardError; end
@@ -14,17 +30,19 @@ module Package
     attr_accessor :name, :version, :base_url, :archive
 
     # returns an array of AurPackages
-    def self.init_from_json(json)
+    def self.init_from_json(json, &block)
       if json.hask_key?('results') && json['results'].class == Array && !json['results'].empty?
         pkgs = []
 
         json['results'].threaded_each do |result|
+          next if block_given? && !block.call(result)
+
           pkg = AurPackage.new
 
-          pkg.name       = json['Name']
-          pkg.version    = json['Version']
-          pkg.base_url   = File.dirname(json['URLPath'])
-          pkg.archive    = File.basename(json['URLPath'])
+          pkg.name       = result['Name']
+          pkg.version    = result['Version']
+          pkg.base_url   = File.dirname(result['URLPath'])
+          pkg.archive    = File.basename(result['URLPath'])
           pkg.pkgbuild   = nil
           pkg.built_pkgs = nil
 
@@ -37,11 +55,12 @@ module Package
       pkgs
     end
 
-    def self.find_pkgs(names)
+    def self.find_pkgs(names, &block)
       url = AurSearch.json_request_url(:info, names.join(' '))
       raise NotFoundError unless url
 
       AurSearch.with_json_response(url) do |json|
+        pkgs = init_from_json(json, &block)
       end
 
     rescue NotFoundError => e
@@ -162,32 +181,23 @@ module Package
     end
   end
 
-  #def self.update
-    #puts "checking for available upgrades..."
+  def self.update
+    pkg_hash = {}
 
-    #targets = []
+    puts "checking for available upgrades..."
 
-    #`pacman -Qm`.lines.threaded_each do |out|
-      #name, version = out.split(' ')
+    `pacman -Qm`.lines.threaded_each do |out|
+      name, version = out.split(' ')
+      pkg_hash << { name => version }
+    end
 
-      #begin
-        #Aur.call_rpc(:multiinfo, name) do |r|
-          #nversion = r['Version']
-          #if `vercmp '#{nversion}' '#{version}'`.to_i == 1
-            #targets << Package.new(r['Name'], nversion, "#{Aur::URL}#{r['URLPath']}")
-          #end
-        #end
+    targets = AurPackage.find_pkgs(pkg_hash.keys) do |result|
+      result['Version'].newer_than?(pkgs_hash[result['Name']]) rescue false
+    end
 
-        #nil
-      #rescue RabbitNotFoundError
-        ## ignore
-      #end
-    #end
+    process_targets targets unless targets.empty?
+  end
 
-    #process_targets targets unless targets.empty?
-  #end
-
-  # accepts names and hands off to process_targets
   #def self.install names
     #targets = []
 
@@ -203,7 +213,7 @@ module Package
   #end
 
   # accepts Packages, returns nothing
-  #def self.process_targets targets
+  def self.process_targets(targets)
     #if $config.resolve_deps
       #puts "resolving dependencies..."
 
@@ -216,12 +226,14 @@ module Package
       #targets = deps[:targets]
     #end
 
-    #print %{
+    print %{
       #Targets (#{targets.length}): #{targets.collect { |x| "#{x.name}-#{x.version}" }.join(' ')}
 
       #Proceed with installation (y/n)? }.gsub(/^ +/,'')
 
-    #exit unless STDIN.gets.chomp =~ /y(es)?/i
+    exit
+    exit unless STDIN.gets.chomp =~ /y(es)?/i
+  end
 
     ## create the build dir if needed
     #unless Dir.exists? $config.build_directory
