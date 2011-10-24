@@ -4,6 +4,8 @@ require 'fileutils'
 require_relative '../lib/rabbit/package'
 
 class PackageTest < Test::Unit::TestCase
+  include Package
+
   def setup
     # a mock config
     $config = Object.new
@@ -16,18 +18,20 @@ class PackageTest < Test::Unit::TestCase
   end
 
   def teardown
-    File.delete @pkg.archive if File.exists? @pkg.archive
-    FileUtils.rm_rf @pkg.name if Dir.exists? @pkg.name
+    if @pkg
+      File.delete @pkg.archive if File.exists? @pkg.archive
+      FileUtils.rm_rf @pkg.name if Dir.exists? @pkg.name
+    end
   end
 
   def test_find
-    @pkg = Package.find 'aurget'
+    @pkg = AurPackage.find 'aurget'
     assert_not_nil @pkg
     assert_equal 'aurget', @pkg.name
   end
 
   def test_pkgbuild_method
-    @pkg = Package.find 'aurget'
+    @pkg = AurPackage.find 'aurget'
     assert_not_nil @pkg
 
     pkgbuild = @pkg.pkgbuild
@@ -35,7 +39,7 @@ class PackageTest < Test::Unit::TestCase
   end
 
   def test_download
-    @pkg = Package.find 'aurget'
+    @pkg = AurPackage.find 'aurget'
     assert_not_nil @pkg
 
     @pkg.download
@@ -43,7 +47,7 @@ class PackageTest < Test::Unit::TestCase
   end
 
   def test_extract
-    @pkg = Package.find 'aurget'
+    @pkg = AurPackage.find 'aurget'
     assert_not_nil @pkg
 
     @pkg.extract
@@ -51,7 +55,7 @@ class PackageTest < Test::Unit::TestCase
   end
 
   def test_build
-    @pkg = Package.find 'aurget'
+    @pkg = AurPackage.find 'aurget'
     assert_not_nil @pkg
 
     @pkg.build

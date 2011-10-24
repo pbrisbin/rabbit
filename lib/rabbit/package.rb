@@ -31,9 +31,9 @@ module Package
 
     # returns an array of AurPackages
     def self.init_from_json(json, &block)
-      if json.hask_key?('results') && json['results'].class == Array && !json['results'].empty?
-        pkgs = []
+      pkgs = []
 
+      if json.hask_key?('results') && json['results'].class == Array && !json['results'].empty?
         json['results'].threaded_each do |result|
           next if block_given? && !block.call(result)
 
@@ -48,8 +48,6 @@ module Package
 
           pkgs << pkg
         end
-      else
-        raise NotFoundError
       end
 
       pkgs
@@ -64,24 +62,36 @@ module Package
         pkgs = init_from_json(json, &block)
       end
 
-      pkgs
+      if pkgs.length != names.length
+        missing = names - pkgs.map(&:name)
+        raise NotFoundError, "Package(s) #{missing.join(', ')} not found"
+      end
 
-    rescue NotFoundError => e
-      STDERR.puts "Package not found"
-      exit 1
+      pkgs
     end
 
-    #def pkgbuild
-      #unless @pkgbuild
-        #url  = @base_url + '/PKGBUILD'
-        #resp = Net::HTTP.get_response(URI.parse(url))
-        #@pkgbuild = Pkgbuild.new(resp.body)
-      #end
+    def self.find(name)
+      pkgs = find_pkgs([name]) # throws NotFoundError
+      pkgs.first
 
-      #@pkgbuild
-    #rescue
-      #raise SkipError
-    #end
+    rescue => e
+      puts e.full_message
+      raise SkipError, "Package #{name} will be skipped."
+    end
+
+    def pkgbuild
+      unless @pkgbuild
+        url  = @base_url + '/PKGBUILD'
+        resp = Net::HTTP.get_response(URI.parse(url))
+        @pkgbuild = Pkgbuild.new(resp.body)
+      end
+
+      @pkgbuild
+
+    rescue => e
+      puts e
+      raise SkipError, "Failure downloading PKGBUILD for #{@pkg.name}"
+    end
 
     #def built_pkgs
       #unless @built_pkgs
