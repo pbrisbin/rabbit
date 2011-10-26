@@ -9,7 +9,7 @@ Gem::Specification.new do |s|
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
   s.authors = ["Patrick Brisbin"]
-  s.date = "2011-10-23"
+  s.date = "2011-10-26"
   s.description = "A n aur helper in ruby"
   s.email = "pbrisbin@gmail.com"
   s.executables = ["rabbit"]
@@ -24,6 +24,7 @@ Gem::Specification.new do |s|
     "etc/rabbit.yml",
     "lib/rabbit/aursearch.rb",
     "lib/rabbit/config.rb",
+    "lib/rabbit/json.rb",
     "lib/rabbit/package.rb",
     "lib/rabbit/pkgbuild.rb",
     "lib/threaded-each.rb",
