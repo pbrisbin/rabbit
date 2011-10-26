@@ -23,28 +23,29 @@ end
 
 module Package
   class NotFoundError < StandardError; end
-  class SkipError     < StandardError; end
+  class ProcessError  < StandardError; end
   class FatalError    < StandardError; end
 
   class AurPackage
+    include FileUtils
+
     attr_accessor :name, :version, :base_url, :archive
 
     # returns an array of AurPackages
     def self.init_from_json(json, &block)
+      key  = 'results'
       pkgs = []
 
-      if json.hask_key?('results') && json['results'].class == Array && !json['results'].empty?
-        json['results'].threaded_each do |result|
+      if json.has_key?(key) && json[key].class == Array && !json[key].empty?
+        json[key].threaded_each do |result|
           next if block_given? && !block.call(result)
 
           pkg = AurPackage.new
 
-          pkg.name       = result['Name']
-          pkg.version    = result['Version']
-          pkg.base_url   = File.dirname(result['URLPath'])
-          pkg.archive    = File.basename(result['URLPath'])
-          pkg.pkgbuild   = nil
-          pkg.built_pkgs = nil
+          pkg.name     = result['Name']
+          pkg.version  = result['Version']
+          pkg.base_url = AurSearch::AUR + File.dirname(result['URLPath'])
+          pkg.archive  = File.basename(result['URLPath'])
 
           pkgs << pkg
         end
@@ -54,9 +55,11 @@ module Package
     end
 
     def self.find_pkgs(names, &block)
-      pkgs = []
+      missing = names
+      pkgs    = []
+
       url = AurSearch.json_request_url(:info, names.join(' '))
-      raise NotFoundError unless url
+      raise unless url
 
       AurSearch.with_json_response(url) do |json|
         pkgs = init_from_json(json, &block)
@@ -64,10 +67,14 @@ module Package
 
       if pkgs.length != names.length
         missing = names - pkgs.map(&:name)
-        raise NotFoundError, "Package(s) #{missing.join(', ')} not found"
+        raise
       end
 
       pkgs
+  
+    rescue => e
+      STDERR.puts e.message
+      raise NotFoundError, missing.join(', ')
     end
 
     def self.find(name)
@@ -75,13 +82,13 @@ module Package
       pkgs.first
 
     rescue => e
-      puts e.full_message
-      raise SkipError, "Package #{name} will be skipped."
+      STDERR.puts e.message
+      raise NotFoundError, e
     end
 
     def pkgbuild
       unless @pkgbuild
-        url  = @base_url + '/PKGBUILD'
+        url  = base_url + '/PKGBUILD'
         resp = Net::HTTP.get_response(URI.parse(url))
         @pkgbuild = Pkgbuild.new(resp.body)
       end
@@ -89,109 +96,100 @@ module Package
       @pkgbuild
 
     rescue => e
-      puts e
-      raise SkipError, "Failure downloading PKGBUILD for #{@pkg.name}"
+      STDERR.puts e.message
+      raise ProcessError, name
     end
 
-    #def built_pkgs
-      #unless @built_pkgs
-        #@built_pkgs = []
+    def built_pkgs
+      unless @built_pkgs
+        @built_pkgs = []
 
-        #Dir.glob("#{@name}/*") do |fp|
-          #@built_pkgs << fp if fp =~ /.*\.pkg\.tar\.[gx]z$/
-        #end
-      #end
+        Dir.glob("#{name}/*") do |fp|
+          @built_pkgs << fp if fp =~ /.*\.pkg\.tar\.[gx]z$/
+        end
+      end
 
-      #@built_pkgs
-    #end
+      @built_pkgs
+    end
 
-    #def download
-      #archive_url = "#{@base_url}/#{@archive}"
+    def download
+      archive_url = "#{base_url}/#{archive}"
 
-      #a = open(archive_url)
-      #f = open(@archive, "wb")
-      #f.write(a.read)
+      a = open(archive_url)
+      f = open(archive, "wb")
+      f.write(a.read)
 
-    #rescue => e
-      #STDERR.puts e.message
-      #raise SkipError
-    #ensure
-      #a.close
-      #f.close
-    #end
+    rescue => e
+      STDERR.puts e.message
+      raise ProcessError, name
+    ensure
+      a.close
+      f.close
+    end
 
-    #def extract
-      #unless File.exists? @archive
-        #begin download
-        #rescue SkipError => e
-          #STDERR.puts e.message
-          #return
-        #end
-      #end
+    def extract
+      download unless File.exists? archive
+      raise ProcessError unless system "tar xzf \"#{archive}\""
+      File.delete archive if $config.discard_tarball
 
-      #raise SkipError unless system "tar xzf \"#{@archive}\""
+    rescue => e
+      STDERR.puts e.message
+      raise ProcessError, name
+    end
 
-      #File.delete @archive if $config.discard_tarball
-    #end
+    def build
+      extract unless File.exists? "#{name}/PKGBUILD"
 
-    #def build
-      #unless File.exists? "#{@name}/PKGBUILD"
-        #begin extract
-        #rescue SkipError => e
-          #STDERR.puts e.message
-          #return
-        #end
-      #end
+      Dir.chdir name do
+        raise unless File.exists? 'PKGBUILD'
+        raise unless system $config.makepkg
 
-      #Dir.chdir @name do
-        #raise SkipError unless File.exists? 'PKGBUILD'
-        #raise SkipError unless system $config.makepkg
+        # maybe discard the sources
+        if $config.discard_sources
+          Dir.glob("./*") do |fp|
+            # keep built packages
+            FileUtils.rm_rf fp unless fp =~ /.*\.pkg\.tar\.[gx]z$/
+          end
+        end
+      end
 
-        ## maybe discard the sources
-        #if $config.discard_sources
-          #Dir.glob("./*") do |fp|
-            ## keep built packages
-            #FileUtils.rm_rf fp unless fp =~ /.*\.pkg\.tar\.[gx]z$/
-          #end
-        #end
-      #end
-    #end
+    rescue => e
+      STDERR.puts e.message
+      raise ProcessError name
+    end
 
-    #def save_pkgs
-      #unless Dir.exists? $config.package_directory
-        #begin FileUtils.mkdir_p $config.package_directory
-        #rescue => e
-          #@built_pkgs = [] # so we don't try to save them
-          #STDERR.puts e.message
-          #raise SkipError
-        #end
-      #end
+    def install
+      args = built_pkgs.collect { |a| "'#{a}'" }.join(' ')
+      raise unless system "#{$config.pacman} #{args}"
+      built_pkgs.each { |pkg| File.delete pkg } if $config.discard_package
 
-      #built_pkgs.each do |pkg|
-        #begin
-          #from = open(pkg, "rb")
-          #to   = open("#{$config.package_directory}/#{File.basename pkg}", "wb")
-          #to.write(from.read)
+    rescue => e
+      STDERR.puts e.message
+      raise ProcessError, name
+    end
 
-          #File.delete pkg
-        #rescue => e
-          #STDERR.puts e.message
-          #raise SkipError
-        #ensure
-          #from.close
-          #to.close
-        #end
-      #end
+    def save_pkgs
+      dir = $config.package_directory
 
-      ## silently ignore
-      #Dir.delete @name rescue Errno::ENOTEMPTY
-    #end
+      mkdir_p dir unless Dir.exists? $config.package_directory
 
-    #def install
-      #args = built_pkgs.collect { |a| "'#{a}'" }.join(' ')
-      #raise SkipError unless system "#{$config.pacman} #{args}"
-      #built_pkgs.each { |pkg| File.delete pkg } if $config.discard_package
-    #end
+      built_pkgs.each do |pkg|
+        from = open(pkg, "rb")
+        to   = open("#{dir pkg}", "wb")
+        to.write(from.read)
+
+        File.delete pkg
+      end
+
+      # silently ignore
+      Dir.delete name rescue Errno::ENOTEMPTY
+    rescue => e
+      STDERR.puts e.message
+      raise ProcessError name
+    ensure
+      from.close if from.defined?
+      to.close   if to.defined?
+    end
   end
 
   def self.update
@@ -209,44 +207,50 @@ module Package
     end
 
     process_targets targets unless targets.empty?
+
+  rescue NotFoundError => e
+    # ignore
+  rescue SkipError => e
+    STDERR.puts "Package #{e.message} failed to process, skipping..."
+  rescue FatalError => e
+    STDERR.puts "Package #{e.message} failed to process, exiting."
+    exit 1
+  rescue => e
+    STDERR.puts e.message
+    exit 1
   end
 
-  #def self.install names
-    #targets = []
+  def self.install names
+    targets = names.collect { |name| find(name) }
+    process_targets targets unless targets.empty?
 
-    #names.each do |name|
-      #begin
-        #targets << find(name)
-      #rescue RabbitNotFoundError
-        #STDERR.puts "#{name}: package not found"
-      #end
-    #end
-
-    #process_targets targets unless targets.empty?
-  #end
+  rescue NotFoundError => e
+    STDERR.puts "Package(s) not found: #{e.message}"
+    exit 1
+  rescue SkipError => e
+    STDERR.puts "Package #{e.message} failed to process, skipping..."
+  rescue FatalError => e
+    STDERR.puts "Package #{e.message} failed to process, exiting."
+    exit 1
+  rescue => e
+    STDERR.puts e.message
+    exit 1
+  end
 
   # accepts Packages, returns nothing
   def self.process_targets(targets)
-    #if $config.resolve_deps
-      #puts "resolving dependencies..."
+    resolve_dependencies if $config.resolve_deps
 
-      #deps = find_all_deps targets
+    puts  "Targets (#{targets.length}): #{targets.collect { |x| "#{x.name}-#{x.version}" }.join(' ')}", ""
+    print "Proceed with installation (y/n)? "
 
-      #puts %{
-        #warning: the following (#{deps[:pacman].length}) packages may be installed by pacman: #{deps[:pacman].join(' ')}
-      #}.gsub(/^ +/,'') unless deps[:pacman].empty?
-
-      #targets = deps[:targets]
-    #end
-
-    print %{
-      #Targets (#{targets.length}): #{targets.collect { |x| "#{x.name}-#{x.version}" }.join(' ')}
-
-      #Proceed with installation (y/n)? }.gsub(/^ +/,'')
-
-    exit
     exit unless STDIN.gets.chomp =~ /y(es)?/i
+
+################################################################################
+
+    exit # for the time being
   end
+end
 
     ## create the build dir if needed
     #unless Dir.exists? $config.build_directory
@@ -288,8 +292,10 @@ module Package
     #end
   #end
 
-  # accepts Packages, returns { :targets => Packages, :pacman => names }
-  #def self.find_all_deps targets
+  # accepts Packages, returns Packages
+  #def self.resolve_dependencies(targets)
+    #puts "resolving dependencies..."
+
     #pac_deps    = []
     #new_targets = targets.reverse!.threaded_each do |pkg|
       #begin
@@ -316,6 +322,10 @@ module Package
 
         #targets_new.uniq { |p| p.name }
 
+        #puts %{
+          #warning: the following (#{deps[:pacman].length}) packages may be installed by pacman: #{deps[:pacman].join(' ')}
+        #}.gsub(/^ +/,'') unless deps[:pacman].empty?
+
       #rescue RabbitNonError => e
         #STDERR.print "#{pkg.name}: #{e}\n"
         #next
@@ -337,5 +347,4 @@ module Package
     #return { :targets => targets.uniq { |p| p.name }.reverse,
               #:pacman => pac_deps.uniq.reverse }
   #end
-
-end
+#end

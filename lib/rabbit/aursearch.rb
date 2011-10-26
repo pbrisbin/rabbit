@@ -4,12 +4,12 @@ module AurSearch
   AUR = "http://aur.archlinux.org"
 
   class SearchResult
-    include JsonResult
+    extend JsonResult
 
     attr_accessor :repo, :name, :version, :description, :url, :url_path, :out_of_date
 
     def self.from_json_result(result)
-      sresult = SearchResult.new
+      sresult = new
       sresult.repo        = 'aur'
       sresult.name        = result['Name']
       sresult.version     = result['Version']
@@ -40,7 +40,13 @@ module AurSearch
       resp = Net::HTTP.get_response(URI.parse(url))
       puts resp.body
     rescue
-      # ignore   
+    end
+  end
+
+  def self.execute_search(type, term)
+    results = SearchResult.init_from_json(type, term)
+    results.sort_by { |r| r.name }.each do |r|
+      r.send(:"show_in_#{type}")
     end
   end
 end
