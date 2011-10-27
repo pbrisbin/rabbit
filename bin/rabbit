@@ -4,19 +4,9 @@
 #
 ###
 
-require 'rabbit/aursearch'
-#require 'rabbit/config'
-#require 'rabbit/package'
-
-Signal.trap("INT") { exit 1 }
-
-#$config = RabbitConfig.load_from_file
+require 'rabbit/aur'
 
 case ARGV.shift
-  when '-Ss'; AurSearch.execute_search(:search  , ARGV.join(' '))
-  when '-Si'; AurSearch.execute_search(:info    , ARGV.join(' '))
-  when '-Sp'; AurSearch.execute_search(:pkgbuild, ARGV.join(' '))
-
-  #when '-Su'; Package.update
-  #when '-S' ; Package.install ARGV
+when '-Ss'; Rabbit::Aur.search(ARGV.join(' '))
+when '-Si'; Rabbit::Aur.search(ARGV)
 end
