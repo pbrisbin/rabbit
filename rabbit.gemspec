@@ -9,7 +9,7 @@ Gem::Specification.new do |s|
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
   s.authors = ["Patrick Brisbin"]
-  s.date = "2011-10-26"
+  s.date = "2011-10-27"
   s.description = "A n aur helper in ruby"
   s.email = "pbrisbin@gmail.com"
   s.executables = ["rabbit"]
@@ -21,21 +21,12 @@ Gem::Specification.new do |s|
     "Rakefile",
     "VERSION",
     "bin/rabbit",
-    "etc/rabbit.yml",
-    "lib/rabbit/aursearch.rb",
-    "lib/rabbit/config.rb",
+    "lib/rabbit/aur.rb",
     "lib/rabbit/json.rb",
     "lib/rabbit/package.rb",
     "lib/rabbit/pkgbuild.rb",
     "lib/threaded-each.rb",
-    "rabbit.gemspec",
-    "test/aursearch_test.rb",
-    "test/config_test.rb",
-    "test/fake_config.yml",
-    "test/package_test.rb",
-    "test/pkgbuild_test.rb",
-    "test/test_helper.rb",
-    "test/threaded_each_test.rb"
+    "rabbit.gemspec"
   ]
   s.require_paths = ["lib"]
   s.rubygems_version = "1.8.10"
