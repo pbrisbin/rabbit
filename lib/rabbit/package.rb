@@ -2,11 +2,11 @@ require 'net/http'
 
 module Rabbit
   module Package
-    def self.find(name)
-      # TODO
-      url = "http://aur.archlinux.org/packages/ha/haskell-yesod/PKGBUILD"
+    def find(name)
+      url = "http://aur.archlinux.org/packages/#{name[0..1]}/#{name}/PKGBUILD"
 
-      pkg = Package.new
+      pkg           = Package.new
+      pkg.name      = name
       pkg.pkg_build = PkgBuild.new(url)
 
       pkg
@@ -14,6 +14,8 @@ module Rabbit
 
     class Package
       attr_accessor :name, :version, :pkg_build
+
+      def to_s; name end
     end
 
     class PkgBuild

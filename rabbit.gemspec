@@ -22,9 +22,9 @@ Gem::Specification.new do |s|
     "VERSION",
     "bin/rabbit",
     "lib/rabbit/aur.rb",
+    "lib/rabbit/dependencies.rb",
     "lib/rabbit/json.rb",
     "lib/rabbit/package.rb",
-    "lib/rabbit/pkgbuild.rb",
     "lib/threaded-each.rb",
     "rabbit.gemspec"
   ]
