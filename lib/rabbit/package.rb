@@ -1,36 +1,40 @@
+require 'net/http'
 
 module Rabbit
   module Package
-    class Taurball
-      def initialize(package)
+    def self.find(name)
+      # TODO
+      url = "http://aur.archlinux.org/packages/ha/haskell-yesod/PKGBUILD"
 
-      end
+      pkg = Package.new
+      pkg.pkg_build = PkgBuild.new(url)
 
-      def download
-
-      end
+      pkg
     end
 
-    class Pkgbuild
-      def initialize(package)
+    class Package
+      attr_accessor :name, :version, :pkg_build
+    end
 
+    class PkgBuild
+      def initialize(url)
+        @url = url
       end
 
       def download
         unless @content
-          # todo: d/l it
+          resp = Net::HTTP.get_response(URI.parse(@url))
+          @content = resp.body
         end
 
         @content
+      rescue => e
+        STDERR.puts e.message
+        @content = ''
       end
 
-      def depends
-        @depends ||= parse(:depends)
-      end
-
-      def makedepends
-        @makedepends ||= parse(:makedepends)
-      end
+      def depends;     @depends     ||= parse('depends')     end
+      def makedepends; @makedepends ||= parse('makedepends') end
 
       private
 
@@ -38,7 +42,7 @@ module Rabbit
         content = download
 
         deps = []
-        if content =~ /(^|\s)#{varname.to_s}=\((.*?)\)/m
+        if content =~ /(^|\s)#{key}=\((.*?)\)/m
           # remove inline comments, join multiline statements, split on
           # whitespace, pull out just the package name from a variety of
           # quoting and/or version bounds
