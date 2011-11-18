@@ -6,14 +6,14 @@ get me up to speed with ruby for my new job.
 I have no idea how far I'm going to take it. Right now it's just 
 something to play with.
 
-### Installation
+## Installation
 
 If you're so inclined...
 
-1. Install the `jeweler` gem
-2. Clone this repo
-3. `rake install`
+    git clone https://github.com/pbrisbin/rabbit
+    bundle install
+    rake install
 
-Note that it's not always in a working state.
+**Note that it's not always in a working state.**
 
 [aurget]: https://github.com/pbrisbin/aurget
