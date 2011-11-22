@@ -1,12 +1,9 @@
-require 'net/http'
-
 module Rabbit
   module Package
-    def find(name)
+    def self.find(name)
       url = "http://aur.archlinux.org/packages/#{name[0..1]}/#{name}/PKGBUILD"
 
-      pkg           = Package.new
-      pkg.name      = name
+      pkg = Package.new(name)
       pkg.pkg_build = PkgBuild.new(url)
 
       pkg
@@ -14,6 +11,10 @@ module Rabbit
 
     class Package
       attr_accessor :name, :version, :pkg_build
+
+      def initialize(name)
+        @name = name
+      end
 
       def to_s; name end
     end
@@ -25,13 +26,14 @@ module Rabbit
 
       def download
         unless @content
+          require 'net/http'
           resp = Net::HTTP.get_response(URI.parse(@url))
           @content = resp.body
         end
 
         @content
-      rescue => e
-        STDERR.puts e.message
+      rescue => ex
+        $stderr.puts "#{ex}"
         @content = ''
       end
 
