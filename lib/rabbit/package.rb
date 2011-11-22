@@ -2,18 +2,30 @@ module Rabbit
   # main Package datatype -- has a name, version and a PkgBuild. TODO:
   # methods to download, build, install, etc.
   class Package
-    attr_accessor :name, :version, :pkg_build
+    extend Json
 
-    def initialize(name)
-      @name = name
-    end
+    attr_reader :name, :version
+    attr_accessor :pkg_build
+
+    private_class_method :new
 
     def to_s; name end
 
+    def init_from_json(result)
+      @name = result.Name
+      @version = result.Version
+    end
+
     def self.find(name)
+      results = fetch_json(url_for_info([name]))
+      return nil if results.empty?
+
+      result = results.first
+
       url = "http://aur.archlinux.org/packages/#{name[0..1]}/#{name}/PKGBUILD"
 
-      pkg = new(name)
+      pkg = new
+      pkg.init_from_json(result)
       pkg.pkg_build = PkgBuild.new(url)
 
       pkg

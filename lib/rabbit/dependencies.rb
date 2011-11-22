@@ -46,7 +46,7 @@ module Rabbit
 
       { :depends     => depends.uniq {|p| p.name}.compact,
         :makedepends => makedepends.uniq {|p| p.name}.compact,
-        :pacdepends  => pacdepends.uniq {|p| p.name}.compact
+        :pacdepends  => pacdepends.uniq.compact
       }
     end
 
