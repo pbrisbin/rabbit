@@ -1,4 +1,6 @@
 module Rabbit
+  # main Package datatype -- has a name, version and a PkgBuild. TODO:
+  # methods to download, build, install, etc.
   class Package
     attr_accessor :name, :version, :pkg_build
 
@@ -18,6 +20,7 @@ module Rabbit
     end
   end
 
+  # a PkgBuild can be downloaded and parsed for depends and make depends
   class PkgBuild
     def initialize(url)
       @url = url

@@ -2,6 +2,8 @@ module Rabbit
   module Json
     KEY = 'results'
 
+    # a single search result with methods representing the keys of the
+    # json hash returned from the AURs rpc function.
     class Result
       def initialize(hsh)
         @hsh = hsh
@@ -12,6 +14,10 @@ module Rabbit
       end
     end
 
+    # fetch the json for the given url and retun an Array of Result
+    # objects. if block is given, each json hash is yielded to it before
+    # creating the Result object -- return nil or false to exclude it
+    # from the returned results (i.e. when checking for updates).
     def fetch_json(url, &block)
       require 'net/http'
       require 'json'
@@ -33,6 +39,7 @@ module Rabbit
       results
     end
 
+    # aur's search rpc url for the given search term.
     def url_for_search(term)
       require 'cgi'
 
@@ -40,6 +47,7 @@ module Rabbit
         '?type=search&arg=' + CGI::escape(term)
     end
 
+    # aur's info rpc url for the given array of package names.
     def url_for_info(terms)
       require 'cgi'
 

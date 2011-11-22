@@ -1,5 +1,9 @@
 module Rabbit
   module Dependencies
+    # for the given package, recursively resolve dependencies. returns a
+    # hash of three keys: depends, makedepends, and pacdepends. depends
+    # and makedepends are Arrays of Package objects and pacdepends is an
+    # Array of String objects -- package names.
     def self.all_dependencies(pkg)
       recursive_dependencies(:depends     => [pkg],
                              :makedepends => [],

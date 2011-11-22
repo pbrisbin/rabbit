@@ -2,6 +2,7 @@ module Rabbit
   module Search
     extend Json
 
+    # search the aur for a search term. prints the results directly.
     def self.search(term)
       results = sorted_results(url_for_search(term))
       results.each do |result|
@@ -12,8 +13,9 @@ module Rabbit
       end
     end
 
-    def self.info(terms)
-      results = sorted_results(url_for_info(terms))
+    # fetch info for each package name. prints the results directly.
+    def self.info(pkg_names)
+      results = sorted_results(url_for_info(pkg_names))
       results.each do |result|
         out_of_date = result.OutOfDate == '1' ? 'Yes' : 'No'
 

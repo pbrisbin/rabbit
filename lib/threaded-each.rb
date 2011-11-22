@@ -1,5 +1,8 @@
 module ThreadedEach
-  def threaded_each &block
+  # yields to block for each item in a separate thread, waits for all
+  # threads to end and returns an array of results. order is
+  # non-deterministic by nature.
+  def threaded_each(&block)
     results = []
     spawned = []
 

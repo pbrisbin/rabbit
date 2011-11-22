@@ -7,6 +7,9 @@ require 'rabbit/search'
 require 'rabbit/package'
 require 'rabbit/dependencies'
 
+# rabbit is a toy implementation of the classic aur-helper in ruby.
+# focus is on speed by being as multi-threaded as the domain allows.
+# view/run lib/rabbit.rb to see what's implemented and how to use it.
 module Rabbit
   class << self
     extend Forwardable

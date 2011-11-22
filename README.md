@@ -11,7 +11,6 @@ something to play with.
 If you're so inclined...
 
     git clone https://github.com/pbrisbin/rabbit
-    bundle install
     rake install
 
 **Note that it's not always in a working state.**
