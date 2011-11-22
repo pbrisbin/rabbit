@@ -1,13 +1,25 @@
 $LOAD_PATH << './lib' # while developing
 
+require 'forwardable'
 require 'threaded-each'
 require 'rabbit/json'
 require 'rabbit/search'
 require 'rabbit/package'
 require 'rabbit/dependencies'
 
-pkg = Rabbit::Package.find('haskell-yesod')
-puts Rabbit::Dependencies.all_dependencies(pkg).inspect
+module Rabbit
+  class << self
+    extend Forwardable
 
-Rabbit::Search.search('aur helper')
-Rabbit::Search.info(['aurget', 'cower-git'])
+    def_delegator Rabbit::Package,      :find
+    def_delegator Rabbit::Dependencies, :all_dependencies
+    def_delegator Rabbit::Search,       :search
+    def_delegator Rabbit::Search,       :info
+  end
+end
+
+pkg = Rabbit.find('haskell-yesod')
+puts Rabbit.all_dependencies(pkg).inspect
+
+Rabbit.search('aur helper')
+Rabbit.info(['aurget', 'cower-git'])
