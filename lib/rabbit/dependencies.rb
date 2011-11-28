@@ -39,21 +39,15 @@ module Rabbit
         end
       end
       
-      #puts ""
-      #puts "d: #{depends.uniq {|p| p.name}.compact.inspect}"
-      #puts "m: #{makedepends.uniq {|p| p.name}.compact.inspect}"
-      #puts "p: #{pacdepends.uniq {|p| p.name}.compact.inspect}"
-
-      { :depends     => depends.uniq {|p| p.name}.compact,
+      {
+        :depends     => depends.uniq {|p| p.name}.compact,
         :makedepends => makedepends.uniq {|p| p.name}.compact,
         :pacdepends  => pacdepends.uniq.compact
       }
     end
 
     def self.more_found(hsh_a, hsh_b)
-      [:depends, :makedepends, :pacdepends].each do |k|
-        #puts "a: #{hsh_a[k].length}"
-        #puts "b: #{hsh_b[k].length}"
+      [:depends, :makedepends].each do |k|
         return true if hsh_a[k].length != hsh_b[k].length
       end
 
