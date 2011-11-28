@@ -23,7 +23,7 @@ end
 #pkg = Rabbit.find('haskell-yesod')
 #puts Rabbit.all_dependencies(pkg).inspect
 
-#Rabbit.search('aur helper')
-#Rabbit.info(['aurget', 'cower-git'])
+Rabbit.search('aur helper')
+Rabbit.info(['aurget', 'cower-git'])
 
 Rabbit.upgrades
