@@ -4,31 +4,69 @@ module Rabbit
   class Package
     extend Json
 
-    attr_reader :name, :version
-    attr_accessor :pkg_build
+    attr_reader :name, :version, :pkg_build
 
     private_class_method :new
 
     def to_s; name end
 
+    # create a Package from the result hash returned by the rpc's search
+    # or multiinfo methods
     def init_from_json(result)
       @name = result.Name
       @version = result.Version
+
+      url = "http://aur.archlinux.org/packages/#{@name[0..1]}/#{@name}/PKGBUILD"
+      @pkg_build = PkgBuild.new(url)
+
+      self
     end
 
+    # find a single package by name or return nil
     def self.find(name)
       results = fetch_json(url_for_info([name]))
       return nil if results.empty?
 
-      result = results.first
-
-      url = "http://aur.archlinux.org/packages/#{name[0..1]}/#{name}/PKGBUILD"
-
       pkg = new
-      pkg.init_from_json(result)
-      pkg.pkg_build = PkgBuild.new(url)
+      pkg.init_from_json(results.first)
+    end
 
-      pkg
+    # find all packages with newer versions available on the aur. for
+    # now just prints what's available
+    def self.upgrades
+      pkgs = {}
+
+      `pacman -Qm`.split("\n").threaded_each do |line|
+        pkg, version = line.split(' ')
+        pkgs[pkg] = version
+      end
+
+      return [] if pkgs.empty?
+
+      available = fetch_json(url_for_info(pkgs.keys)) do |result|
+        name    = result['Name']
+        version = result['Version']
+        local   = pkgs[name]
+
+        vercmp(version, local) == 1 ? result : nil
+      end
+
+      if available.empty?
+        puts "Nothing to do"
+      else
+        available.sort_by(&:Name).each do |result|
+          pkg = new
+          pkg.init_from_json(result)
+
+          puts "#{pkg.name}: #{pkgs[pkg.name]} -> #{pkg.version}"
+        end
+      end
+    end
+
+    private
+
+    def self.vercmp(a, b)
+      `vercmp #{a} #{b}`.to_i rescue 0
     end
   end
 

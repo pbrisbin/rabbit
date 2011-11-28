@@ -1,5 +1,3 @@
-$LOAD_PATH << './lib' # while developing
-
 require 'forwardable'
 require 'threaded-each'
 require 'rabbit/json'
@@ -15,14 +13,17 @@ module Rabbit
     extend Forwardable
 
     def_delegator Rabbit::Package,      :find
+    def_delegator Rabbit::Package,      :upgrades
     def_delegator Rabbit::Dependencies, :all_dependencies
     def_delegator Rabbit::Search,       :search
     def_delegator Rabbit::Search,       :info
   end
 end
 
-pkg = Rabbit.find('haskell-yesod')
-puts Rabbit.all_dependencies(pkg).inspect
+#pkg = Rabbit.find('haskell-yesod')
+#puts Rabbit.all_dependencies(pkg).inspect
 
-Rabbit.search('aur helper')
-Rabbit.info(['aurget', 'cower-git'])
+#Rabbit.search('aur helper')
+#Rabbit.info(['aurget', 'cower-git'])
+
+Rabbit.upgrades
