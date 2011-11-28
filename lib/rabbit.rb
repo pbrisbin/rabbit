@@ -20,10 +20,29 @@ module Rabbit
   end
 end
 
-#pkg = Rabbit.find('haskell-yesod')
-#puts Rabbit.all_dependencies(pkg).inspect
+def test_depends
+  name = 'haskell-yesod'
 
-Rabbit.search('aur helper')
-Rabbit.info(['aurget', 'cower-git'])
+  pkg = Rabbit.find(name)
+  deps = Rabbit.all_dependencies(pkg)
 
-Rabbit.upgrades
+  puts "#{name} has:"
+  puts "> #{deps[:depends].length} depends"
+  puts "> #{deps[:makedepends].length} makedepends"
+  puts "> #{deps[:pacdepends].length} pacdepends"
+end
+
+def test_search
+  Rabbit.search('aur helper')
+  Rabbit.info(['aurget', 'cower-git'])
+end
+
+def test_upgrades
+  Rabbit.upgrades.sort_by(&:name).each do |pkg|
+    puts "#{pkg.name} --> #{pkg.version}"
+  end
+end
+
+test_depends
+test_search
+test_upgrades
