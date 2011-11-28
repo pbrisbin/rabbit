@@ -14,13 +14,16 @@ module ThreadedEach
       spawned << th
     end
 
-    spawned.each do |th|
-      th.join
-    end
+    spawned.each(&:join)
 
     results
   end
 end
 
-class Enumerator; include ThreadedEach end
-class Array;      include ThreadedEach end
+class Enumerator # :nodoc:
+  include ThreadedEach
+end
+
+class Array # :nodoc:
+  include ThreadedEach
+end
