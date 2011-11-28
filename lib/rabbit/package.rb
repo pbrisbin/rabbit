@@ -24,11 +24,23 @@ module Rabbit
 
     # find a single package by name or return nil
     def self.find(name)
+      retry_count = 10 # aur flakeyness
+
       results = fetch_json(url_for_info([name]))
       return nil if results.empty?
 
       pkg = new
       pkg.init_from_json(results.first)
+
+    rescue => ex
+      if retry_count > 0
+        retry_count -= 1
+        retry
+      else
+        $stderr.puts "error finding #{name}: #{ex}"
+      end
+
+      nil
     end
 
     # find all packages with newer versions available on the aur. for
@@ -51,15 +63,11 @@ module Rabbit
         vercmp(version, local) == 1 ? result : nil
       end
 
-      if available.empty?
-        puts "Nothing to do"
-      else
-        available.sort_by(&:Name).each do |result|
-          pkg = new
-          pkg.init_from_json(result)
+      return [] if available.empty?
 
-          puts "#{pkg.name}: #{pkgs[pkg.name]} -> #{pkg.version}"
-        end
+      available.threaded_each do |result|
+        pkg = new
+        pkg.init_from_json(result)
       end
     end
 
