@@ -28,20 +28,20 @@ module Rabbit
       pacdepends  = hsh[:pacdepends].dup
 
       (hsh[:depends] + hsh[:makedepends]).threaded_each do |pkg|
-        pkg.pkg_build.depends.threaded_each do |d|
+        unsatisfied(pkg.pkg_build.depends).threaded_each do |d|
           p = Package.find(d)
           p ? depends << p : pacdepends << d
         end
 
-        pkg.pkg_build.makedepends.threaded_each do |m|
+        unsatisfied(pkg.pkg_build.makedepends).threaded_each do |m|
           p = Package.find(m)
           p ? makedepends << p : pacdepends << m
         end
       end
       
       {
-        :depends     => depends.uniq {|p| p.name}.compact,
-        :makedepends => makedepends.uniq {|p| p.name}.compact,
+        :depends     => depends.uniq(&:name).compact,
+        :makedepends => makedepends.uniq(&:name).compact,
         :pacdepends  => pacdepends.uniq.compact
       }
     end
@@ -52,6 +52,10 @@ module Rabbit
       end
 
       false
+    end
+
+    def self.unsatisfied(deps)
+      `pacman -T -- #{deps.join(' ')}`.split("\n")
     end
   end
 end
