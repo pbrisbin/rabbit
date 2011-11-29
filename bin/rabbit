@@ -1,0 +1,35 @@
+#!/usr/bin/env ruby
+
+require 'rabbit'
+
+while arg = ARGV.shift
+  case arg
+  when '-Si' then Rabbit.info(ARGV)
+  when '-Ss' then Rabbit.search(ARGV.join(' '))
+
+  when /^-Sy?u$/
+    Rabbit.upgrades.sort_by(&:name).each do |pkg|
+      puts "#{pkg.name} --> #{pkg.version}"
+    end
+
+  when '-S'
+    ARGV.each do |name|
+      pkg = Rabbit.find(name)
+
+      unless pkg
+        $stderr.puts "#{name}: package not found"
+        next
+      end
+
+      puts "--> #{pkg.name}-#{pkg.version}"
+
+      deps = Rabbit.all_dependencies(pkg)
+
+      [:depends, :makedepends, :pacdepends].each do |k|
+        unless deps[k].empty?
+          puts "#{k.to_s} (#{deps[k].length}): #{deps[k].join(' ')}"
+        end
+      end
+    end
+  end
+end
