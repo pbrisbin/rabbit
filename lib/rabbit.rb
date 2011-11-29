@@ -42,7 +42,3 @@ def test_upgrades
     puts "#{pkg.name} --> #{pkg.version}"
   end
 end
-
-test_depends
-test_search
-test_upgrades
